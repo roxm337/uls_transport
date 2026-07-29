@@ -1,0 +1,255 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// ULS Transport CRM — internal client and expedition management.
+// ─────────────────────────────────────────────────────────────────────
+
+/// A client company of ULS Transport (donneur d'ordre).
+model Client {
+  id          String  @id @default(cuid())
+  companyName String
+  siret       String?
+  vatNumber   String?
+
+  /// Main billing / operational contact.
+  contactName String?
+  email       String?
+  phone       String?
+
+  addressLine String? @db.Text
+  postalCode  String?
+  city        String?
+  country     String  @default("France")
+
+  /// Prospect | Actif | Inactif | Suspendu
+  status      String  @default("Prospect")
+  /// JSON array of ULS service slugs the client has subscribed to.
+  services    String? @db.Text
+  /// Staff member (User) owning the relationship.
+  accountManagerId String?
+  /// e.g. "30 jours fin de mois"
+  paymentTerms String?
+  notes        String? @db.Text
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contacts    ClientContact[]
+  expeditions Expedition[]
+
+  @@index([status])
+  @@index([accountManagerId])
+  @@index([companyName])
+}
+
+/// Additional named contacts at a client company.
+model ClientContact {
+  id        String  @id @default(cuid())
+  clientId  String
+  name      String
+  role      String?
+  email     String?
+  phone     String?
+  isPrimary Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+}
+
+/// A transport job run for a client.
+model Expedition {
+  id        String  @id @default(cuid())
+  /// Human reference, e.g. ULS-2026-0001
+  reference String  @unique
+  clientId  String
+
+  /// One of the ULS service slugs (see lib/brand.ts SERVICES).
+  service   String
+  /// Demandee | Planifiee | Enlevee | En transit | Livree | Annulee
+  status    String  @default("Demandee")
+
+  pickupAddress    String?   @db.Text
+  pickupPostalCode String?
+  pickupCity       String?
+  pickupDate       DateTime?
+
+  deliveryAddress    String?   @db.Text
+  deliveryPostalCode String?
+  deliveryCity       String?
+  deliveryDate       DateTime?
+
+  goodsDescription String? @db.Text
+  packages         Int?
+  weightKg         Float?
+  /// Set point for frigorifique jobs, e.g. "2 à 4 °C".
+  temperature      String?
+  vehicleType      String?
+
+  priceHt   Decimal? @db.Decimal(10, 2)
+  notes     String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  events    ExpeditionEvent[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([service])
+  @@index([createdAt])
+}
+
+/// Append-only history of an expedition: who moved it, to what, and when.
+/// Expedition.status only holds the current value, so without this the
+/// question "when did it actually leave?" has no answer.
+model ExpeditionEvent {
+  id             String   @id @default(cuid())
+  expeditionId   String
+  /// created | status
+  type           String   @default("status")
+  /// Status after the transition (the initial status for a `created` event).
+  status         String?
+  /// Status before the transition; null on creation.
+  previousStatus String?
+  note           String?  @db.Text
+  /// Kept nullable so deleting a staff account never erases the history.
+  userId         String?
+  /// Snapshot of the author's name, for the same reason.
+  userName       String?
+  createdAt      DateTime @default(now())
+
+  expedition     Expedition @relation(fields: [expeditionId], references: [id], onDelete: Cascade)
+
+  @@index([expeditionId, createdAt])
+}
+
+model AdminSettings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id              String      @id @default(cuid())
+  email           String      @unique
+  name            String?
+  password        String
+  role            String      @default("MANAGER")
+  allowedSections Json?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  status          String      @default("PENDING")
+  logo            String?
+  actions         ActionLog[]
+}
+
+model ActionLog {
+  id        String   @id @default(cuid())
+  action    String
+  details   String?  @db.LongText
+  ipAddress String?
+  userAgent String?
+  userId    String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "ActionLog_userId_fkey")
+}
+
+model MessagingConfig {
+  id               String       @id @default(cuid())
+  type             String?      @default("client")
+  config           String?      @db.LongText
+  clientId         String?      @unique
+  clientMessagingEnabled Boolean @default(false)
+  smtpEnabled      Boolean      @default(false)
+  smtpHost         String?
+  smtpPort         Int?
+  smtpUsername     String?
+  smtpPassword     String?      @db.Text
+  smtpEncryption   String?
+  smtpFromName     String?
+  smtpFromEmail    String?
+  whatsappEnabled  Boolean      @default(false)
+  whatsappProvider String?
+  whatsappApiKey   String?      @db.Text
+  whatsappApiUrl   String?
+  whatsappAutoSend Boolean      @default(false)
+  whatsappTimeout  Int          @default(0)
+  whatsappTemplate String?      @db.Text
+  smtpAutoSend     Boolean      @default(false)
+  smtpTimeout      Int          @default(0)
+  // Staff notification fields (added safely — all nullable/defaulted)
+  staffNotifyEnabled  Boolean   @default(false)
+  staffNotifyPhone    String?
+  staffNotifyGroupId  String?
+  staffNotifyMode     String?   @default("phone")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  messageLogs      MessageLog[]
+
+  @@index([clientId])
+}
+
+model MessageTemplate {
+  id            String       @id @default(cuid())
+  name          String       @db.VarChar(255)
+  type          String
+  scope         String       @default("global")
+  clientId      String?
+  subject       String?      @db.VarChar(255)
+  content       String       @db.Text
+  category      String?
+  description   String?      @db.Text
+  status        String       @default("active")
+  isDefault     Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  lastUsedAt    DateTime?
+  usageCount    Int          @default(0)
+  messageLogs   MessageLog[] @relation("TemplateUsage")
+
+  @@index([type])
+  @@index([scope])
+  @@index([status])
+  @@index([clientId])
+  @@index([isDefault])
+  @@index([name, type])
+}
+
+model MessageLog {
+  id         String           @id @default(cuid())
+  configId   String
+  templateId String?
+  channel    String
+  recipient  String
+  subject    String?
+  message    String           @db.Text
+  status     String
+  error      String?          @db.Text
+  metadata   String?          @db.LongText
+  sentAt     DateTime?
+  createdAt  DateTime         @default(now())
+  config     MessagingConfig  @relation(fields: [configId], references: [id], onDelete: Cascade)
+  template   MessageTemplate? @relation("TemplateUsage", fields: [templateId], references: [id])
+
+  @@index([configId])
+  @@index([channel])
+  @@index([status])
+  @@index([createdAt])
+  @@index([templateId])
+}
+
