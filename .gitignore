@@ -40,8 +40,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 *.md
+!README.md
 *.resolved
 *.sql
+# Migrations are the schema's history — they must be tracked.
+!prisma/migrations/**/*.sql
+# Leftover SQLite file from before the move to MySQL.
+prisma/dev.db
 plan.html
 planning/
 /scripts/
