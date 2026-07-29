@@ -1,0 +1,405 @@
+'use client';
+
+import * as React from 'react';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { motion } from 'framer-motion';
+import {
+    ArrowLeft, Pencil, Trash, Plus, Mail, Phone, MapPin, FileText,
+    Building2, Truck, Star, Loader2,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import {
+    Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import { ClientDialog } from '@/components/admin/ClientDialog';
+import {
+    CLIENT_STATUS_STYLES, EXPEDITION_STATUS_STYLES, expeditionStatusLabel,
+    parseServices, serviceLabel, serviceShortLabel, formatEuros,
+} from '@/lib/crm';
+import {
+    fetchClient, deleteClient, createContact, deleteContact, type Client,
+} from '@/lib/services/clients';
+import { useAdminRole } from '@/components/admin/AdminLayoutClient';
+
+export default function ClientDetailPage() {
+    const { id } = useParams<{ id: string }>();
+    const router = useRouter();
+    const role = useAdminRole();
+    const isAdmin = role?.toUpperCase?.() === 'ADMIN';
+
+    const [client, setClient] = React.useState<Client | null>(null);
+    const [loading, setLoading] = React.useState(true);
+    const [editOpen, setEditOpen] = React.useState(false);
+    const [contactOpen, setContactOpen] = React.useState(false);
+    const [deleting, setDeleting] = React.useState(false);
+
+    const load = React.useCallback(async () => {
+        setLoading(true);
+        try {
+            setClient(await fetchClient(id));
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Client introuvable.');
+        } finally {
+            setLoading(false);
+        }
+    }, [id]);
+
+    React.useEffect(() => { void load(); }, [load]);
+
+    async function handleDelete() {
+        const count = client?.expeditions?.length ?? 0;
+        const warning = count > 0
+            ? `Supprimer ${client?.companyName} ? Ses ${count} expédition(s) et contacts seront également supprimés. Cette action est irréversible.`
+            : `Supprimer ${client?.companyName} ? Cette action est irréversible.`;
+        if (!confirm(warning)) return;
+
+        setDeleting(true);
+        try {
+            await deleteClient(id);
+            toast.success('Client supprimé.');
+            router.push('/admin/clients');
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Suppression impossible.');
+            setDeleting(false);
+        }
+    }
+
+    if (loading) {
+        return (
+            <div className="flex h-64 items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-slate-300" />
+            </div>
+        );
+    }
+
+    if (!client) {
+        return (
+            <div className="space-y-4">
+                <Link href="/admin/clients" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-ink-950">
+                    <ArrowLeft className="h-4 w-4" /> Retour aux clients
+                </Link>
+                <p className="text-sm text-slate-500">Ce client n&apos;existe pas ou a été supprimé.</p>
+            </div>
+        );
+    }
+
+    const services = parseServices(client.services);
+    const expeditions = client.expeditions ?? [];
+    const contacts = client.contacts ?? [];
+
+    return (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            <Link href="/admin/clients" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-ink-950">
+                <ArrowLeft className="h-4 w-4" /> Retour aux clients
+            </Link>
+
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-4">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-ink-950">
+                        <Building2 className="h-6 w-6 text-brand-500" />
+                    </span>
+                    <div>
+                        <h1 className="text-2xl font-black tracking-tight text-ink-950">
+                            {client.companyName}
+                        </h1>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <Badge variant="outline" className={CLIENT_STATUS_STYLES[client.status] ?? ''}>
+                                {client.status}
+                            </Badge>
+                            {client.siret && (
+                                <span className="text-xs font-mono text-slate-400">SIRET {client.siret}</span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex gap-2 shrink-0">
+                    <Button variant="outline" className="gap-2" onClick={() => setEditOpen(true)}>
+                        <Pencil className="h-4 w-4" /> Modifier
+                    </Button>
+                    {isAdmin && (
+                        <Button variant="outline" onClick={handleDelete} disabled={deleting}
+                            className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700">
+                            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash className="h-4 w-4" />}
+                            Supprimer
+                        </Button>
+                    )}
+                </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-3">
+                {/* Coordinates */}
+                <Card className="border-slate-200 lg:col-span-1">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Coordonnées</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                        <Row icon={Building2} label="Contact" value={client.contactName} />
+                        <Row icon={Mail} label="E-mail" value={client.email} href={client.email ? `mailto:${client.email}` : undefined} />
+                        <Row icon={Phone} label="Téléphone" value={client.phone} href={client.phone ? `tel:${client.phone.replace(/\s/g, '')}` : undefined} />
+                        <Row
+                            icon={MapPin}
+                            label="Adresse"
+                            value={[client.addressLine, [client.postalCode, client.city].filter(Boolean).join(' '), client.country]
+                                .filter(Boolean).join(', ') || null}
+                        />
+                        <Row icon={FileText} label="Règlement" value={client.paymentTerms} />
+                        {client.vatNumber && <Row icon={FileText} label="N° TVA" value={client.vatNumber} />}
+                    </CardContent>
+                </Card>
+
+                {/* Services */}
+                <Card className="border-slate-200 lg:col-span-2">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Services ULS souscrits</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {services.length === 0 ? (
+                            <p className="text-sm text-slate-500">Aucun service renseigné.</p>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                {services.map(s => (
+                                    <span key={s}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-brand-300 bg-brand-50 px-3 py-1.5 text-sm font-medium text-ink-950">
+                                        <Truck className="h-3.5 w-3.5" />
+                                        {serviceLabel(s)}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                        {client.notes && (
+                            <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
+                                    Notes
+                                </p>
+                                <p className="whitespace-pre-wrap text-sm text-slate-700">{client.notes}</p>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Contacts */}
+            <Card className="border-slate-200">
+                <CardHeader className="flex flex-row items-center justify-between pb-3">
+                    <CardTitle className="text-base">Contacts ({contacts.length})</CardTitle>
+                    <Button size="sm" variant="outline" className="gap-2" onClick={() => setContactOpen(true)}>
+                        <Plus className="h-4 w-4" /> Ajouter
+                    </Button>
+                </CardHeader>
+                <CardContent>
+                    {contacts.length === 0 ? (
+                        <p className="text-sm text-slate-500">Aucun contact enregistré.</p>
+                    ) : (
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {contacts.map(c => (
+                                <div key={c.id} className="rounded-lg border border-slate-200 p-3">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <p className="flex items-center gap-1.5 font-semibold text-ink-950">
+                                                {c.name}
+                                                {c.isPrimary && <Star className="h-3.5 w-3.5 fill-brand-500 text-brand-500" />}
+                                            </p>
+                                            {c.role && <p className="text-xs text-slate-500">{c.role}</p>}
+                                        </div>
+                                        <button
+                                            onClick={async () => {
+                                                if (!confirm(`Supprimer le contact ${c.name} ?`)) return;
+                                                try {
+                                                    await deleteContact(c.id);
+                                                    toast.success('Contact supprimé.');
+                                                    void load();
+                                                } catch (error) {
+                                                    toast.error(error instanceof Error ? error.message : 'Échec.');
+                                                }
+                                            }}
+                                            className="shrink-0 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                            aria-label={`Supprimer ${c.name}`}
+                                        >
+                                            <Trash className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                    {c.email && (
+                                        <a href={`mailto:${c.email}`} className="mt-2 block truncate text-xs text-slate-600 hover:text-ink-950">
+                                            {c.email}
+                                        </a>
+                                    )}
+                                    {c.phone && <p className="text-xs text-slate-600">{c.phone}</p>}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Expeditions */}
+            <Card className="border-slate-200">
+                <CardHeader className="flex flex-row items-center justify-between pb-3">
+                    <CardTitle className="text-base">Expéditions ({expeditions.length})</CardTitle>
+                    <Link href={`/admin/expeditions?clientId=${client.id}`}>
+                        <Button size="sm" variant="outline">Voir tout</Button>
+                    </Link>
+                </CardHeader>
+                <CardContent>
+                    {expeditions.length === 0 ? (
+                        <p className="text-sm text-slate-500">Aucune expédition pour ce client.</p>
+                    ) : (
+                        <div className="rounded-lg border border-slate-200 overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="bg-slate-50">
+                                        <TableHead>Référence</TableHead>
+                                        <TableHead>Service</TableHead>
+                                        <TableHead>Trajet</TableHead>
+                                        <TableHead>Statut</TableHead>
+                                        <TableHead className="text-right">Prix HT</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {expeditions.map(e => (
+                                        <TableRow key={e.id} className="hover:bg-slate-50">
+                                            <TableCell>
+                                                <Link href={`/admin/expeditions/${e.id}`}
+                                                    className="font-mono text-xs font-semibold text-ink-950 hover:underline">
+                                                    {e.reference}
+                                                </Link>
+                                            </TableCell>
+                                            <TableCell className="text-sm">{serviceShortLabel(e.service)}</TableCell>
+                                            <TableCell className="text-sm text-slate-600">
+                                                {[e.pickupCity, e.deliveryCity].filter(Boolean).join(' → ') || '—'}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline" className={EXPEDITION_STATUS_STYLES[e.status] ?? ''}>
+                                                    {expeditionStatusLabel(e.status)}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right text-sm font-medium">
+                                                {formatEuros(e.priceHt)}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            <ClientDialog open={editOpen} onOpenChange={setEditOpen} client={client} onSaved={() => void load()} />
+            <ContactDialog open={contactOpen} onOpenChange={setContactOpen} clientId={client.id} onSaved={() => void load()} />
+        </motion.div>
+    );
+}
+
+function Row({ icon: Icon, label, value, href }: {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    value?: string | null;
+    href?: string;
+}) {
+    return (
+        <div className="flex items-start gap-3">
+            <Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+            <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
+                {href && value ? (
+                    <a href={href} className="break-words text-slate-800 hover:text-ink-950 hover:underline">{value}</a>
+                ) : (
+                    <p className="break-words text-slate-800">{value || '—'}</p>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function ContactDialog({ open, onOpenChange, clientId, onSaved }: {
+    open: boolean;
+    onOpenChange: (v: boolean) => void;
+    clientId: string;
+    onSaved: () => void;
+}) {
+    const [form, setForm] = React.useState({ name: '', role: '', email: '', phone: '' });
+    const [isPrimary, setIsPrimary] = React.useState(false);
+    const [saving, setSaving] = React.useState(false);
+
+    React.useEffect(() => {
+        if (open) {
+            setForm({ name: '', role: '', email: '', phone: '' });
+            setIsPrimary(false);
+        }
+    }, [open]);
+
+    async function submit(e: React.FormEvent) {
+        e.preventDefault();
+        if (!form.name.trim()) {
+            toast.error('Le nom est obligatoire.');
+            return;
+        }
+        setSaving(true);
+        try {
+            await createContact(clientId, { ...form, isPrimary });
+            toast.success('Contact ajouté.');
+            onOpenChange(false);
+            onSaved();
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Échec.');
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader><DialogTitle>Nouveau contact</DialogTitle></DialogHeader>
+                <form onSubmit={submit} className="space-y-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="c-name">Nom *</Label>
+                        <Input id="c-name" value={form.name}
+                            onChange={e => setForm({ ...form, name: e.target.value })}
+                            placeholder="Camille Rousseau" required />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="c-role">Fonction</Label>
+                        <Input id="c-role" value={form.role}
+                            onChange={e => setForm({ ...form, role: e.target.value })}
+                            placeholder="Responsable logistique" />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="c-email">E-mail</Label>
+                        <Input id="c-email" type="email" value={form.email}
+                            onChange={e => setForm({ ...form, email: e.target.value })} />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="c-phone">Téléphone</Label>
+                        <Input id="c-phone" value={form.phone}
+                            onChange={e => setForm({ ...form, phone: e.target.value })} />
+                    </div>
+                    <label htmlFor="c-primary" className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox id="c-primary" checked={isPrimary}
+                            onCheckedChange={v => setIsPrimary(Boolean(v))} />
+                        Contact principal
+                    </label>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                            Annuler
+                        </Button>
+                        <Button type="submit" disabled={saving} className="bg-brand-500 text-ink-950 hover:bg-brand-400">
+                            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Ajouter
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
