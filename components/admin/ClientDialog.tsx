@@ -53,7 +53,7 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
             // the rest of the form stays usable.
             toast.error(t.clients.staffLoadFailed);
         });
-    }, [open]);
+    }, [open, t]);
 
     React.useEffect(() => {
         if (!open) return;

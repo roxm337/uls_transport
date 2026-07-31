@@ -88,7 +88,7 @@ export default function ClientsPage() {
         } finally {
             setLoading(false);
         }
-    }, [debounced, status, service, accountManagerId, page]);
+    }, [debounced, status, service, accountManagerId, page, t]);
 
     React.useEffect(() => { void load(); }, [load]);
 

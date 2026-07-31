@@ -82,7 +82,7 @@ function ExpeditionsContent() {
         } finally {
             setLoading(false);
         }
-    }, [debounced, status, service, clientId, page]);
+    }, [debounced, status, service, clientId, page, t]);
 
     React.useEffect(() => { void load(); }, [load]);
 

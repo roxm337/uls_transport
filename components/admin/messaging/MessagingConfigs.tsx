@@ -127,7 +127,7 @@ export function MessagingConfigs() {
     const [isLoadingData, setIsLoadingData] = useState(true);
 
     const [config, setConfig] = useState<MessagingConfigForm | null>(null);
-    const [isLoadingConfig, setIsLoadingConfig] = useState(false);
+    const [, setIsLoadingConfig] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isTesting, setIsTesting] = useState<'email' | 'whatsapp' | null>(null);
     const [testResults, setTestResults] = useState<{ email?: boolean; whatsapp?: boolean }>({});
@@ -209,8 +209,12 @@ export function MessagingConfigs() {
         setIsSaving(true);
         try {
             // Strip DB-internal fields before sending.
-            const { id, key, createdAt, updatedAt, ...configToSend } =
-                config as MessagingConfigForm & Record<string, unknown>;
+            // Strip the columns the API owns; the rest is the editable form.
+            const configToSend = Object.fromEntries(
+                Object.entries(config).filter(
+                    ([field]) => !['id', 'key', 'createdAt', 'updatedAt'].includes(field)
+                )
+            );
 
             const response = await fetch('/api/admin/messaging/config', {
                 method: 'POST',

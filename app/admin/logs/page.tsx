@@ -85,7 +85,7 @@ export default function LogsPage() {
         } finally {
             if (!silent) setLoading(false);
         }
-    }, [page, debouncedSearch, roleFilter, actionFilter]);
+    }, [page, debouncedSearch, roleFilter, actionFilter, t]);
 
     useEffect(() => { void fetchLogs(); }, [fetchLogs]);
 

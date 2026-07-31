@@ -209,6 +209,38 @@ export function MessagingCompose() {
         }
     }, [searchParams]);
 
+    const fetchInitialData = async () => {
+        try {
+            // Recipients are clients and their contacts. This used to call
+            // /api/admin/leads — an endpoint removed with the lead pipeline,
+            // so the picker had been quietly empty ever since.
+            const res = await fetch('/api/admin/messaging/recipients', { cache: 'no-store' });
+
+            if (res.ok) {
+                const data = await res.json();
+                setLeads(data.recipients || []);
+            }
+        } catch (error) {
+            console.error('Failed to fetch data', error);
+        } finally {
+            setIsLoadingData(false);
+        }
+    };
+
+    const fetchScopeStatus = async () => {
+        setIsLoadingStatus(true);
+        try {
+            const response = await fetch('/api/admin/messaging/status', { cache: 'no-store' });
+            if (response.ok) {
+                setScopeStatus(await response.json());
+            }
+        } catch (error) {
+            console.error('Failed to fetch messaging status', error);
+        } finally {
+            setIsLoadingStatus(false);
+        }
+    };
+
     useEffect(() => {
         fetchInitialData();
     }, []);
@@ -259,37 +291,7 @@ export function MessagingCompose() {
         setValidationErrors(errors);
     }, [recipient, subject, message, channel]);
 
-    const fetchScopeStatus = async () => {
-        setIsLoadingStatus(true);
-        try {
-            const response = await fetch('/api/admin/messaging/status', { cache: 'no-store' });
-            if (response.ok) {
-                setScopeStatus(await response.json());
-            }
-        } catch (error) {
-            console.error('Failed to fetch messaging status', error);
-        } finally {
-            setIsLoadingStatus(false);
-        }
-    };
 
-    const fetchInitialData = async () => {
-        try {
-            // Recipients are clients and their contacts. This used to call
-            // /api/admin/leads — an endpoint removed with the lead pipeline,
-            // so the picker had been quietly empty ever since.
-            const res = await fetch('/api/admin/messaging/recipients', { cache: 'no-store' });
-
-            if (res.ok) {
-                const data = await res.json();
-                setLeads(data.recipients || []);
-            }
-        } catch (error) {
-            console.error('Failed to fetch data', error);
-        } finally {
-            setIsLoadingData(false);
-        }
-    };
 
     const filteredLeads = useMemo(() => {
         if (!leadSearchQuery) return leads.slice(0, 50);
@@ -382,30 +384,6 @@ export function MessagingCompose() {
         }, 0);
     }, [message]);
 
-    // Keyboard shortcuts handler
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        // Ctrl/Cmd + Enter to send
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-            e.preventDefault();
-            handleSend();
-            return;
-        }
-
-        // WhatsApp formatting shortcuts
-        if (channel === 'whatsapp' && (e.ctrlKey || e.metaKey)) {
-            switch (e.key) {
-                case 'b':
-                    e.preventDefault();
-                    applyFormat('*');
-                    break;
-                case 'i':
-                    e.preventDefault();
-                    applyFormat('_');
-                    break;
-            }
-        }
-    }, [channel, applyFormat]);
-
     const handleSend = async () => {
         if (!recipient || !message || (channel === 'email' && !subject)) {
             toast.error('Please fill in all required fields');
@@ -452,6 +430,31 @@ export function MessagingCompose() {
             setIsLoading(false);
         }
     };
+
+    // Keyboard shortcuts handler
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        // Ctrl/Cmd + Enter to send
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            handleSend();
+            return;
+        }
+
+        // WhatsApp formatting shortcuts
+        if (channel === 'whatsapp' && (e.ctrlKey || e.metaKey)) {
+            switch (e.key) {
+                case 'b':
+                    e.preventDefault();
+                    applyFormat('*');
+                    break;
+                case 'i':
+                    e.preventDefault();
+                    applyFormat('_');
+                    break;
+            }
+        }
+    }, [channel, applyFormat]);
+
 
     const getPreviewMessage = () => {
         let previewText = message;

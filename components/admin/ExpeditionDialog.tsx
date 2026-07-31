@@ -57,7 +57,7 @@ export function ExpeditionDialog({
         fetchClientOptions().then(setClients).catch(() => {
             toast.error(t.expeditionDialog.clientsLoadFailed);
         });
-    }, [open]);
+    }, [open, t]);
 
     React.useEffect(() => {
         if (!open) return;

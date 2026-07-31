@@ -58,7 +58,7 @@ export default function ClientDetailPage() {
         } finally {
             setLoading(false);
         }
-    }, [id]);
+    }, [id, t]);
 
     React.useEffect(() => { void load(); }, [load]);
 

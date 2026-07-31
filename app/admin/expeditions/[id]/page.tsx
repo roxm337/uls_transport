@@ -59,7 +59,7 @@ export default function ExpeditionDetailPage() {
         } finally {
             setLoading(false);
         }
-    }, [id]);
+    }, [id, t]);
 
     React.useEffect(() => { void load(); }, [load]);
 
