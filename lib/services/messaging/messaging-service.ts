@@ -17,6 +17,7 @@ import { IMessagingService, EmailMessage, WhatsAppMessage, MessageResult, EmailC
 import { EmailService } from './email-service';
 import { getWhatsAppProvider } from './providers';
 import { decryptCredential, encryptCredential } from './crypto';
+import { errorMessage } from '@/lib/errors';
 
 /** The one and only configuration row. */
 const SINGLETON_KEY = 'uls';
@@ -87,11 +88,11 @@ export class MessagingService implements IMessagingService {
             });
 
             return result;
-        } catch (error: any) {
+        } catch (error) {
             console.error('[MessagingService] sendEmail error:', error);
             return {
                 success: false,
-                error: error.message || 'Failed to send email',
+                error: errorMessage(error, 'Failed to send email'),
             };
         }
     }
@@ -147,11 +148,11 @@ export class MessagingService implements IMessagingService {
             });
 
             return result;
-        } catch (error: any) {
+        } catch (error) {
             console.error('[MessagingService] sendWhatsApp error:', error);
             return {
                 success: false,
-                error: error.message || 'Failed to send WhatsApp message',
+                error: errorMessage(error, 'Failed to send WhatsApp message'),
             };
         }
     }
@@ -197,11 +198,11 @@ export class MessagingService implements IMessagingService {
             });
 
             return result;
-        } catch (error: any) {
+        } catch (error) {
             console.error('[MessagingService] sendWhatsAppToGroup error:', error);
             return {
                 success: false,
-                error: error.message || 'Failed to send WhatsApp group message',
+                error: errorMessage(error, 'Failed to send WhatsApp group message'),
             };
         }
     }

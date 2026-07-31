@@ -20,7 +20,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/lib/i18n/context';
 import {
-    Loader2,
     Mail,
     MessageCircle,
     Clock,
@@ -61,11 +60,26 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+/** One row of MessageLog, as this screen reads it. */
+interface MessageLogRow {
+    id: string;
+    channel: string;
+    recipient: string;
+    subject?: string | null;
+    message: string;
+    status: string;
+    error?: string | null;
+    metadata?: string | null;
+    sentAt?: string | null;
+    createdAt: string;
+    template?: { name: string; category?: string | null } | null;
+}
+
 export function MessagingLogs() {
     const { t } = useLanguage();
-    const [logs, setLogs] = useState<any[]>([]);
+    const [logs, setLogs] = useState<MessageLogRow[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [selectedLog, setSelectedLog] = useState<any>(null);
+    const [selectedLog, setSelectedLog] = useState<MessageLogRow | null>(null);
     const [channelFilter, setChannelFilter] = useState<string>('all');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');

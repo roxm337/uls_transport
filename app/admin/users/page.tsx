@@ -7,8 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Plus, Trash, UserPlus, Shield, Pencil, Check, Ban, Upload, X } from 'lucide-react';
+import Image from 'next/image';
+import { Plus, Trash, Shield, Pencil, Check, Ban, X } from 'lucide-react';
 import { fetchUsers, createUser, deleteUser, updateUser, User } from '@/lib/services/users';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
@@ -270,6 +270,7 @@ export default function UsersPage() {
                                         />
                                         {newLogoPreview && (
                                             <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
+                                                {/* eslint-disable-next-line @next/next/no-img-element -- data: URL from FileReader; next/image cannot optimise it */}
                                                 <img src={newLogoPreview} alt={t.users.avatarPreview} className="w-full h-full object-contain" />
                                                 <button
                                                     type="button"
@@ -359,6 +360,7 @@ export default function UsersPage() {
                                         />
                                         {editLogoPreview && (
                                             <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
+                                                {/* eslint-disable-next-line @next/next/no-img-element -- data: URL from FileReader; next/image cannot optimise it */}
                                                 <img src={editLogoPreview} alt={t.users.avatarPreview} className="w-full h-full object-contain" />
                                                 <button
                                                     type="button"
@@ -451,9 +453,12 @@ export default function UsersPage() {
                                                     <TableCell>
                                                         <div className="flex items-center gap-3">
                                                             {user.logo ? (
-                                                                <img
+                                                                <Image
                                                                     src={user.logo}
-                                                                    alt={`logo`}
+                                                                    alt=""
+                                                                    width={36}
+                                                                    height={36}
+                                                                    unoptimized
                                                                     className="h-9 w-9 rounded-full border border-slate-200 object-cover shrink-0"
                                                                 />
                                                             ) : (

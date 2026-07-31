@@ -17,7 +17,7 @@ export async function GET() {
             orderBy: { createdAt: 'desc' },
         });
         return NextResponse.json({ users });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

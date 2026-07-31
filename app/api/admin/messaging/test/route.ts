@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireSection } from '@/lib/server/staff-auth';
 import { MessagingService, EmailService } from '@/lib/services/messaging';
 import { getWhatsAppProvider } from '@/lib/services/messaging';
+import { errorMessage } from '@/lib/errors';
 
 /** Placeholder the configuration screen shows in place of a stored secret. */
 const MASK = '********';
@@ -152,12 +153,12 @@ export async function POST(request: NextRequest) {
                 { status: 400 }
             );
         }
-    } catch (error: any) {
+    } catch (error) {
         console.error('[API] POST /api/admin/messaging/test error:', error);
         return NextResponse.json(
             {
                 success: false,
-                error: error.message || 'Internal server error'
+                error: errorMessage(error)
             },
             { status: 500 }
         );

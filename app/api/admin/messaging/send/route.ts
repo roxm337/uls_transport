@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireSection } from '@/lib/server/staff-auth';
 import { MessagingService } from '@/lib/services/messaging';
 import { prisma } from '@/lib/db';
+import { errorMessage } from '@/lib/errors';
 
 
 export async function POST(request: NextRequest) {
@@ -81,12 +82,12 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json(result);
-    } catch (error: any) {
+    } catch (error) {
         console.error('[API] POST /api/admin/messaging/send error:', error);
         return NextResponse.json(
             {
                 success: false,
-                error: error.message || 'Internal server error'
+                error: errorMessage(error)
             },
             { status: 500 }
         );

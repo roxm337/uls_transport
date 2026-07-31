@@ -16,7 +16,7 @@ import { EXPEDITION_STATUSES, SERVICE_OPTIONS } from '@/lib/crm';
 import { useLanguage } from '@/lib/i18n/context';
 import {
     createExpedition, updateExpedition, fetchClientOptions,
-    type Expedition, type ClientOption,
+    type Expedition, type ClientOption, type ExpeditionInput,
 } from '@/lib/services/clients';
 
 interface Props {
@@ -100,7 +100,7 @@ export function ExpeditionDialog({
 
         setSaving(true);
         try {
-            const payload: any = {
+            const payload: ExpeditionInput = {
                 ...form,
                 packages: form.packages === '' ? null : Number(form.packages),
                 weightKg: form.weightKg === '' ? null : Number(form.weightKg),

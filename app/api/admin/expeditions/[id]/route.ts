@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { logAction } from '@/lib/actions';
 import { requireSection, canDelete } from '@/lib/server/staff-auth';
@@ -7,7 +8,7 @@ import { notifyExpedition } from '@/lib/server/expedition-notifications';
 
 const SECTION = '/admin/expeditions';
 
-function present(expedition: any) {
+function present<T extends { priceHt: unknown }>(expedition: T) {
     return {
         ...expedition,
         priceHt: expedition.priceHt === null ? null : Number(expedition.priceHt),
@@ -78,7 +79,7 @@ export async function PATCH(
             return NextResponse.json({ error: 'Service ULS invalide.' }, { status: 400 });
         }
 
-        const data: any = {};
+        const data: Prisma.ExpeditionUpdateInput & Record<string, unknown> = {};
 
         for (const key of [
             'status', 'service', 'pickupAddress', 'pickupPostalCode', 'pickupCity',

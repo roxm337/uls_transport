@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { FileText, Check, Star, Eye, Loader2, Sparkles, Mail, MessageCircle } from 'lucide-react';
+import { FileText, Star, Eye, Loader2, Sparkles, Mail, MessageCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/lib/i18n/context';

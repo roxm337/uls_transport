@@ -75,7 +75,7 @@ async function upsertStaff(opts: {
             role: opts.role,
             status: 'ACTIVE',
             ...(opts.allowedSections !== undefined
-                ? { allowedSections: opts.allowedSections as any }
+                ? { allowedSections: opts.allowedSections as string[] }
                 : {}),
         },
         create: {
@@ -85,7 +85,7 @@ async function upsertStaff(opts: {
             role: opts.role,
             status: 'ACTIVE',
             ...(opts.allowedSections !== undefined
-                ? { allowedSections: opts.allowedSections as any }
+                ? { allowedSections: opts.allowedSections as string[] }
                 : {}),
         },
     })
@@ -99,7 +99,7 @@ async function main() {
     const { password: adminPassword, generated } = resolveAdminPassword()
     const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } })
 
-    const admin = await upsertStaff({
+    await upsertStaff({
         email: adminEmail,
         name: 'Administrateur ULS',
         password: adminPassword,

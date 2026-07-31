@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { logAction } from '@/lib/actions';
 import { requireSection } from '@/lib/server/staff-auth';
@@ -19,7 +20,7 @@ export async function PATCH(
             return NextResponse.json({ error: 'Contact introuvable.' }, { status: 404 });
         }
 
-        const data: any = {};
+        const data: Prisma.ClientContactUpdateInput & Record<string, unknown> = {};
         for (const key of ['role', 'email', 'phone']) {
             if (body[key] !== undefined) data[key] = body[key] || null;
         }

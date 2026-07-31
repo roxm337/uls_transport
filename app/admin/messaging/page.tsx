@@ -7,9 +7,7 @@ import {
     Send,
     Settings,
     History,
-    Loader2,
     FileText,
-    Sparkles
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from '@/lib/i18n/context';
@@ -85,7 +83,7 @@ function MessagingPageContent() {
                     transition={{ delay: 0.2 }}
                 >
                     <TabsList className="bg-white/80 backdrop-blur-sm border shadow-sm p-1.5 h-auto gap-1">
-                        {tabs.map((tab, index) => (
+                        {tabs.map((tab) => (
                             <TabsTrigger
                                 key={tab.value}
                                 value={tab.value}

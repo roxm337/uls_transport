@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { requireSection } from '@/lib/server/staff-auth';
 import { prisma } from '@/lib/db';
 import { decryptCredential } from '@/lib/services/messaging';
+import { errorMessage } from '@/lib/errors';
 
 
 export async function GET() {
@@ -55,12 +56,12 @@ export async function GET() {
 
         // Normalize: WaSender returns { success, data: [{jid, name, imgUrl}] }
         const groups: { jid: string; name: string }[] = Array.isArray(data?.data)
-            ? data.data.map((g: any) => ({ jid: g.jid, name: g.name || g.jid }))
+            ? data.data.map((g: { jid: string; name?: string }) => ({ jid: g.jid, name: g.name || g.jid }))
             : [];
 
         return NextResponse.json({ success: true, groups });
-    } catch (error: any) {
+    } catch (error) {
         console.error('[GroupsProxy] Unexpected error:', error);
-        return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+        return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
     }
 }

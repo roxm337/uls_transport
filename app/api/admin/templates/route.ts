@@ -3,6 +3,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { requireSection } from '@/lib/server/staff-auth';
 import { prisma } from '@/lib/db';
 import { logAction } from '@/lib/actions';
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
         const clientId = searchParams.get('clientId');
 
         // Build where clause
-        const where: any = {};
+        const where: Prisma.MessageTemplateWhereInput = {};
 
         if (type) where.type = type;
         if (status) where.status = status;
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
             templates,
             total: templates.length
         });
-    } catch (error: any) {
+    } catch (error) {
         console.error('[API] GET /api/admin/templates error:', error);
         return NextResponse.json(
             { error: 'Internal server error' },
@@ -182,7 +183,7 @@ export async function POST(request: NextRequest) {
             { success: true, template },
             { status: 201 }
         );
-    } catch (error: any) {
+    } catch (error) {
         console.error('[API] POST /api/admin/templates error:', error);
         return NextResponse.json(
             { error: 'Internal server error' },

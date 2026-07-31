@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { logAction } from '@/lib/actions';
 import { requireSection } from '@/lib/server/staff-auth';
@@ -63,7 +64,7 @@ export async function GET(req: Request) {
         const accountManagerId = searchParams.get('accountManagerId');
         const { page, pageSize, skip } = parsePaging(searchParams);
 
-        const and: any[] = [];
+        const and: Prisma.ClientWhereInput[] = [];
 
         if (search) {
             and.push({

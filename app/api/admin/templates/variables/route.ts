@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
             },
             sampleData
         });
-    } catch (error: any) {
+    } catch (error) {
         console.error('[API] GET /api/admin/templates/variables error:', error);
         return NextResponse.json(
             { error: 'Internal server error' },

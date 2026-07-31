@@ -6,6 +6,7 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { IEmailService, EmailMessage, EmailConfig, MessageResult } from './types';
+import { errorMessage } from '@/lib/errors';
 
 export class EmailService implements IEmailService {
     /**
@@ -61,11 +62,11 @@ export class EmailService implements IEmailService {
                     rejected: info.rejected,
                 },
             };
-        } catch (error: any) {
+        } catch (error) {
             console.error('[EmailService] Failed to send email:', error);
             return {
                 success: false,
-                error: error.message || 'Failed to send email',
+                error: errorMessage(error, 'Failed to send email'),
                 details: error,
             };
         }
@@ -93,7 +94,7 @@ export class EmailService implements IEmailService {
         const isTLS = encryption === 'TLS';
 
         // For Hostinger and similar providers, use specific settings
-        const transportOptions: any = {
+        const transportOptions: Record<string, unknown> = {
             host: config.host,
             port: config.port,
             auth: {

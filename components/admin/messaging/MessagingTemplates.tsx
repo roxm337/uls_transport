@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -21,6 +21,7 @@ import {
 } from '@/lib/crm';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { useLanguage } from '@/lib/i18n/context';
+import { errorMessage } from '@/lib/errors';
 
 interface MessageTemplate {
     id: string;
@@ -58,7 +59,7 @@ export function MessagingTemplates() {
     const [formIsDefault, setFormIsDefault] = useState(false);
     const [formSaving, setFormSaving] = useState(false);
     const [templateToDelete, setTemplateToDelete] = useState<MessageTemplate | null>(null);
-    const [clients, setClients] = useState<any[]>([]);
+    const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
 
     const [filterClientId, setFilterClientId] = useState<string>('all');
 
@@ -118,7 +119,6 @@ export function MessagingTemplates() {
         setFormContent(template.content);
         setFormCategory(template.category || 'welcome');
         setFormScope(template.scope);
-        // @ts-ignore - template might have clientId
         setFormClientId(template.clientId || '');
         setFormStatus(template.status);
         setFormIsDefault(template.isDefault);
@@ -175,8 +175,8 @@ export function MessagingTemplates() {
             setIsCreateOpen(false);
             resetForm();
             loadTemplates();
-        } catch (error: any) {
-            toast.error(error.message || 'Failed to save template');
+        } catch (error) {
+            toast.error(errorMessage(error, 'Failed to save template'));
         } finally {
             setFormSaving(false);
         }

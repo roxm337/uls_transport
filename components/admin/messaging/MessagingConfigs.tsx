@@ -47,13 +47,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -77,12 +71,45 @@ import {
  * Which clients are written to automatically is set per client, on the
  * client's own sheet ("Notifications automatiques").
  */
+/**
+ * The editable shape of the single ULS configuration. Credentials arrive
+ * masked, so they are strings like any other field here.
+ */
+interface MessagingConfigForm {
+    id?: string;
+    key?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    smtpEnabled?: boolean;
+    smtpHost?: string | null;
+    smtpPort?: number | string | null;
+    smtpUsername?: string | null;
+    smtpPassword?: string | null;
+    smtpEncryption?: string | null;
+    smtpFromName?: string | null;
+    smtpFromEmail?: string | null;
+    smtpAutoSend?: boolean;
+    smtpTimeout?: number | string | null;
+    whatsappEnabled?: boolean;
+    whatsappProvider?: string | null;
+    whatsappApiKey?: string | null;
+    whatsappApiUrl?: string | null;
+    whatsappAutoSend?: boolean;
+    whatsappTimeout?: number | string | null;
+    whatsappTemplate?: string | null;
+    staffNotifyEnabled?: boolean;
+    staffNotifyPhone?: string | null;
+    staffNotifyGroupId?: string | null;
+    staffNotifyMode?: string | null;
+    testRecipient?: string | null;
+}
+
 export function MessagingConfigs() {
     const { t } = useLanguage();
     const role = useAdminRole();
     const [isLoadingData, setIsLoadingData] = useState(true);
 
-    const [config, setConfig] = useState<any>(null);
+    const [config, setConfig] = useState<MessagingConfigForm | null>(null);
     const [isLoadingConfig, setIsLoadingConfig] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isTesting, setIsTesting] = useState<'email' | 'whatsapp' | null>(null);
@@ -160,10 +187,12 @@ export function MessagingConfigs() {
     };
 
     const handleSave = async () => {
+        if (!config) return;
         setIsSaving(true);
         try {
             // Strip DB-internal fields before sending.
-            const { id, key, createdAt, updatedAt, messageLogs, ...configToSend } = config as any;
+            const { id, key, createdAt, updatedAt, ...configToSend } =
+                config as MessagingConfigForm & Record<string, unknown>;
 
             const response = await fetch('/api/admin/messaging/config', {
                 method: 'POST',
@@ -186,6 +215,7 @@ export function MessagingConfigs() {
     };
 
     const handleTest = async (channel: 'email' | 'whatsapp') => {
+        if (!config) return;
         setIsTesting(channel);
         try {
             const response = await fetch('/api/admin/messaging/test', {
@@ -206,7 +236,7 @@ export function MessagingConfigs() {
                 toast.error(data.error || t.messaging.compose.testError);
                 setTestResults(prev => ({ ...prev, [channel]: false }));
             }
-        } catch (error) {
+        } catch {
             toast.error(t.messaging.compose.testError);
             setTestResults(prev => ({ ...prev, [channel]: false }));
         } finally {

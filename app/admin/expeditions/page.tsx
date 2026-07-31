@@ -24,7 +24,7 @@ import { useLanguage } from '@/lib/i18n/context';
 import { Pagination } from '@/components/admin/Pagination';
 import {
     EXPEDITION_STATUSES, EXPEDITION_STATUS_STYLES,
-    expeditionStatusLabel, SERVICE_OPTIONS, serviceShortLabel, formatEuros,
+    SERVICE_OPTIONS, serviceShortLabel, formatEuros,
 } from '@/lib/crm';
 import {
     fetchExpeditions, deleteExpedition,

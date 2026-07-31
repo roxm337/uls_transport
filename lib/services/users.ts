@@ -13,7 +13,7 @@ export async function fetchUsers(): Promise<User[]> {
     const res = await fetch('/api/admin/users');
     if (!res.ok) throw new Error('Failed to fetch users');
     const data = await res.json();
-    return data.users.map((u: any) => ({
+    return data.users.map((u: User) => ({
         ...u,
         createdAt: new Date(u.createdAt).toLocaleDateString(),
     }));

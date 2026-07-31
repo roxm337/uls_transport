@@ -20,7 +20,15 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
     return compare(password, hash);
 }
 
-export async function signToken(payload: any): Promise<string> {
+/** Claims carried by the session cookie. */
+export interface SessionClaims {
+    userId: string;
+    role: string;
+    email: string;
+    [claim: string]: unknown;
+}
+
+export async function signToken(payload: SessionClaims): Promise<string> {
     return new SignJWT(payload)
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
@@ -28,11 +36,11 @@ export async function signToken(payload: any): Promise<string> {
         .sign(JWT_SECRET);
 }
 
-export async function verifyToken(token: string): Promise<any> {
+export async function verifyToken(token: string): Promise<SessionClaims | null> {
     try {
         const { payload } = await jwtVerify(token, JWT_SECRET);
-        return payload;
-    } catch (error) {
+        return payload as SessionClaims;
+    } catch {
         return null;
     }
 }

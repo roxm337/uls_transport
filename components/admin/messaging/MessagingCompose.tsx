@@ -12,13 +12,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue
-} from '@/components/ui/select';
 import { useLanguage } from '@/lib/i18n/context';
 import { toast } from 'sonner';
 import {
@@ -31,10 +24,6 @@ import {
     Check,
     ChevronsUpDown,
     AlertCircle,
-    Info,
-    RefreshCw,
-    ArrowUpRight,
-    FileText,
     Eye,
     Clock,
     X,
@@ -45,7 +34,6 @@ import {
     Italic,
     Strikethrough,
     Code,
-    Sparkles,
     Keyboard,
     ChevronRight,
     Settings,
@@ -89,6 +77,26 @@ interface Lead {
     email: string;
     company?: string | null;
     createdAt?: string;
+}
+
+/** What `/api/admin/messaging/status` reports about the ULS account. */
+interface MessagingStatus {
+    emailSetup: boolean;
+    whatsappSetup: boolean;
+    emailAutoSend: boolean;
+    whatsappAutoSend: boolean;
+    whatsappTimeout: number;
+    smtpTimeout: number;
+}
+
+/** One row of the message log, as the history panel reads it. */
+interface MessageLogRow {
+    id: string;
+    channel: string;
+    recipient: string;
+    subject?: string | null;
+    status: string;
+    createdAt: string;
 }
 
 interface ValidationErrors {
@@ -135,10 +143,10 @@ export function MessagingCompose() {
     const [leadSearchQuery, setLeadSearchQuery] = useState('');
     const [isLeadPopoverOpen, setIsLeadPopoverOpen] = useState(false);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-    const [scopeStatus, setScopeStatus] = useState<any>(null);
+    const [scopeStatus, setScopeStatus] = useState<MessagingStatus | null>(null);
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
-    const [leadHistory, setLeadHistory] = useState<any[]>([]);
+    const [leadHistory, setLeadHistory] = useState<MessageLogRow[]>([]);
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
     // New UX state

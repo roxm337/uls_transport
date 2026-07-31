@@ -7,7 +7,7 @@ export interface MessageResult {
     success: boolean;
     error?: string;
     messageId?: string;
-    details?: any;
+    details?: unknown;
 }
 
 export interface EmailConfig {

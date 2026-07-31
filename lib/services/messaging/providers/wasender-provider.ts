@@ -4,6 +4,7 @@
  */
 
 import { IWhatsAppProvider, WhatsAppMessage, WhatsAppConfig, MessageResult } from '../types';
+import { errorMessage } from '@/lib/errors';
 
 const REQUEST_TIMEOUT = 10000; // 10 seconds
 
@@ -154,9 +155,9 @@ export class WasenderProvider implements IWhatsAppProvider {
                 details: responseData,
             };
 
-        } catch (error: any) {
+        } catch (error) {
             // Handle different error types
-            if (error.name === 'AbortError') {
+            if (error instanceof Error && error.name === 'AbortError') {
                 console.error('[WasenderProvider] Request timeout after 10 seconds');
                 return {
                     success: false,
@@ -164,7 +165,8 @@ export class WasenderProvider implements IWhatsAppProvider {
                 };
             }
 
-            if (error.code === 'ECONNREFUSED') {
+            if (typeof error === 'object' && error !== null && 'code' in error
+                && (error as { code?: string }).code === 'ECONNREFUSED') {
                 console.error('[WasenderProvider] Connection refused - API may be down');
                 return {
                     success: false,
@@ -176,7 +178,7 @@ export class WasenderProvider implements IWhatsAppProvider {
             console.error('[WasenderProvider] Unexpected error:', error);
             return {
                 success: false,
-                error: error.message || 'Unknown error',
+                error: errorMessage(error, 'Unknown error'),
             };
         }
     }
@@ -297,12 +299,12 @@ export class WasenderProvider implements IWhatsAppProvider {
                 messageId: responseData.id || responseData.messageId,
                 details: responseData,
             };
-        } catch (error: any) {
-            if (error.name === 'AbortError') {
+        } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
                 return { success: false, error: 'Request timeout' };
             }
             console.error('[WasenderProvider] Unexpected group send error:', error);
-            return { success: false, error: error.message || 'Unknown error' };
+            return { success: false, error: errorMessage(error, 'Unknown error') };
         }
     }
 

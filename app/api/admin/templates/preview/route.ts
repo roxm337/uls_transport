@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSection } from '@/lib/server/staff-auth';
 import { prisma } from '@/lib/db';
-import { TemplateRenderer } from '@/lib/services/messaging/template-renderer';
+import { TemplateRenderer, type VariableContext } from '@/lib/services/messaging/template-renderer';
 
 
 /**
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        let context: any = {};
+        const context: VariableContext = {};
         let variableValues: Record<string, string> = {};
 
         // Preview against a real client when one is supplied
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
             variables: variableValues,
             usedVariables: Array.from(new Set(usedVariables))
         });
-    } catch (error: any) {
+    } catch (error) {
         console.error('[API] POST /api/admin/templates/preview error:', error);
         return NextResponse.json(
             { error: 'Internal server error' },

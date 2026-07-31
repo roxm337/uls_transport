@@ -23,7 +23,7 @@ import {
 import { ExpeditionDialog } from '@/components/admin/ExpeditionDialog';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import {
-    EXPEDITION_STATUSES, EXPEDITION_STATUS_STYLES, expeditionStatusLabel,
+    EXPEDITION_STATUSES, EXPEDITION_STATUS_STYLES,
     serviceLabel, formatEuros,
 } from '@/lib/crm';
 import {

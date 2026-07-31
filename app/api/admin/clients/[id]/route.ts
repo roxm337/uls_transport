@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { logAction } from '@/lib/actions';
 import { requireSection, canDelete } from '@/lib/server/staff-auth';
@@ -88,7 +89,7 @@ export async function PATCH(
             );
         }
 
-        const data: any = {};
+        const data: Prisma.ClientUpdateInput & Record<string, unknown> = {};
         const passthrough = [
             'siret', 'vatNumber', 'contactName', 'email', 'phone',
             'addressLine', 'postalCode', 'city', 'country',

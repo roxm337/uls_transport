@@ -3,6 +3,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { requireSection, requireAdmin } from '@/lib/server/staff-auth';
 import { prisma } from '@/lib/db';
 import { logAction } from '@/lib/actions';
@@ -38,7 +39,7 @@ export async function GET(
         }
 
         return NextResponse.json({ template });
-    } catch (error: any) {
+    } catch (error) {
         console.error('[API] GET /api/admin/templates/[id] error:', error);
         return NextResponse.json(
             { error: 'Internal server error' },
@@ -133,7 +134,7 @@ export async function PATCH(
         }
 
         // Build update data
-        const updateData: any = {};
+        const updateData: Prisma.MessageTemplateUpdateInput & Record<string, unknown> = {};
         if (name !== undefined) updateData.name = name;
         if (subject !== undefined) updateData.subject = subject;
         if (content !== undefined) updateData.content = content;
@@ -156,7 +157,7 @@ export async function PATCH(
         });
 
         return NextResponse.json({ success: true, template });
-    } catch (error: any) {
+    } catch (error) {
         console.error('[API] PATCH /api/admin/templates/[id] error:', error);
         return NextResponse.json(
             { error: 'Internal server error' },
@@ -204,7 +205,7 @@ export async function DELETE(
         });
 
         return NextResponse.json({ success: true });
-    } catch (error: any) {
+    } catch (error) {
         console.error('[API] DELETE /api/admin/templates/[id] error:', error);
         return NextResponse.json(
             { error: 'Internal server error' },

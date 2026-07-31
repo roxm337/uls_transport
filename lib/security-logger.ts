@@ -38,7 +38,7 @@ interface SecurityLogPayload {
     userId?: string;
     email?: string; // Fallback identifier
     ip?: string;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
     req?: Request; // Helper to extract IP/UA if not explicitly provided
 }
 
@@ -51,7 +51,8 @@ export async function logSecurityEvent(
     payload: SecurityLogPayload
 ) {
     try {
-        let { severity, userId, email, ip, details, req } = payload;
+        const { severity, userId, email, details, req } = payload;
+        let { ip } = payload;
 
         // Extract IP and User Agent if request object is provided
         let userAgent: string | undefined;
@@ -78,7 +79,7 @@ export async function logSecurityEvent(
                 if (!userAgent) {
                     userAgent = headerList.get('user-agent') || undefined;
                 }
-            } catch (e) {
+            } catch {
                 // Ignore headers() error if called outside request context
             }
         }

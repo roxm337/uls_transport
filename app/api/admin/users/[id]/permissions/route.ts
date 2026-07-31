@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { requireAdmin } from '@/lib/server/staff-auth';
 import { prisma } from '@/lib/db';
 import { ADMIN_SECTION_VALUES, DEFAULT_MANAGER_SECTIONS } from '@/lib/sections';
@@ -102,7 +103,7 @@ export async function POST(
         }
 
         // Prepare update data
-        const updateData: any = {};
+        const updateData: Prisma.UserUpdateInput = {};
         if (allowedSections !== undefined) updateData.allowedSections = allowedSections;
 
         // Update user permissions

@@ -24,7 +24,7 @@ import {
 import { ClientDialog } from '@/components/admin/ClientDialog';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import {
-    CLIENT_STATUS_STYLES, EXPEDITION_STATUS_STYLES, expeditionStatusLabel,
+    CLIENT_STATUS_STYLES, EXPEDITION_STATUS_STYLES,
     parseServices, serviceLabel, serviceShortLabel, formatEuros,
 } from '@/lib/crm';
 import {

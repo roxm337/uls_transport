@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { logAction } from '@/lib/actions';
 import { requireSection } from '@/lib/server/staff-auth';
@@ -19,7 +20,7 @@ function parsePaging(searchParams: URLSearchParams) {
 }
 
 /** Decimal/Date fields don't serialise cleanly — normalise before returning. */
-function present(expedition: any) {
+function present<T extends { priceHt: unknown }>(expedition: T) {
     return {
         ...expedition,
         priceHt: expedition.priceHt === null ? null : Number(expedition.priceHt),
@@ -50,7 +51,7 @@ export async function GET(req: Request) {
         const clientId = searchParams.get('clientId');
         const { page, pageSize, skip } = parsePaging(searchParams);
 
-        const and: any[] = [];
+        const and: Prisma.ExpeditionWhereInput[] = [];
 
         if (search) {
             and.push({

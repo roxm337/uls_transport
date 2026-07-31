@@ -6,7 +6,7 @@ import { prisma } from '@/lib/db';
 import { verifyToken, verifyPassword, hashPassword } from '@/lib/auth';
 import { logSecurityEvent, SecurityEvent, SecuritySeverity } from '@/lib/security-logger';
 
-export async function logAction(action: string, details?: any) {
+export async function logAction(action: string, details?: unknown) {
     try {
         const cookieStore = await cookies();
         const headerList = await headers();
@@ -138,8 +138,9 @@ export async function updateUserProfile(data: { name?: string; email?: string })
         revalidatePath('/admin/settings');
 
         return { success: true, user };
-    } catch (error: any) {
-        if (error?.code === 'P2002') {
+    } catch (error) {
+        if (typeof error === 'object' && error !== null && 'code' in error
+            && (error as { code?: string }).code === 'P2002') {
             return { success: false, error: 'Cette adresse e-mail est déjà utilisée.' };
         }
         console.error('Failed to update user profile:', error);
