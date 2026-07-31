@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -42,7 +42,7 @@ export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePi
     const [loading, setLoading] = useState(false);
     const [hoveredTemplate, setHoveredTemplate] = useState<MessageTemplate | null>(null);
 
-    const loadTemplates = async () => {
+    const loadTemplates = useCallback(async () => {
         try {
             setLoading(true);
             const params = new URLSearchParams({ type, status: 'active' });
@@ -58,13 +58,11 @@ export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePi
         } finally {
             setLoading(false);
         }
-    };
+    }, [type, scopeId]);
 
     useEffect(() => {
-        if (open) {
-            loadTemplates();
-        }
-    }, [open, type, scopeId]);
+        if (open) void loadTemplates();
+    }, [open, loadTemplates]);
 
 
     const handleSelect = (template: MessageTemplate) => {

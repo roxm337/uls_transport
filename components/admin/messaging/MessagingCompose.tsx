@@ -384,7 +384,7 @@ export function MessagingCompose() {
         }, 0);
     }, [message]);
 
-    const handleSend = async () => {
+    const handleSend = useCallback(async () => {
         if (!recipient || !message || (channel === 'email' && !subject)) {
             toast.error('Please fill in all required fields');
             return;
@@ -424,12 +424,12 @@ export function MessagingCompose() {
             } else {
                 toast.error(data.error || 'Failed to send message');
             }
-        } catch (error) {
+        } catch {
             toast.error('Failed to send message');
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [channel, recipient, subject, message, selectedTemplateId, validationErrors, t]);
 
     // Keyboard shortcuts handler
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

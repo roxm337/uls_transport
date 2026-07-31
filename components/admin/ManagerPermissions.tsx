@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,7 @@ export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
 
-    const fetchPermissions = async () => {
+    const fetchPermissions = useCallback(async () => {
         setIsLoading(true);
         try {
             const response = await fetch(`/api/admin/users/${userId}/permissions`);
@@ -53,13 +53,13 @@ export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [userId]);
 
     useEffect(() => {
         if (userRole === 'MANAGER') {
-            fetchPermissions();
+            void fetchPermissions();
         }
-    }, [userId, userRole]);
+    }, [userRole, fetchPermissions]);
 
 
     const handleToggleSection = (sectionPath: string) => {

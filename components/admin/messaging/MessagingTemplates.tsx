@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -63,7 +63,7 @@ export function MessagingTemplates() {
 
     const [filterClientId, setFilterClientId] = useState<string>('all');
 
-    const loadClients = async () => {
+    const loadClients = useCallback(async () => {
         try {
             const res = await fetch('/api/admin/users/clients');
             if (res.ok) {
@@ -73,9 +73,9 @@ export function MessagingTemplates() {
         } catch (error) {
             console.error('Failed to load clients:', error);
         }
-    };
+    }, []);
 
-    const loadTemplates = async () => {
+    const loadTemplates = useCallback(async () => {
         try {
             setLoading(true);
             const res = await fetch(`/api/admin/templates?type=${activeTab}${filterClientId !== 'all' ? `&clientId=${filterClientId}` : ''}`);
@@ -88,12 +88,12 @@ export function MessagingTemplates() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [activeTab, filterClientId]);
 
     useEffect(() => {
-        loadTemplates();
-        loadClients();
-    }, [activeTab, filterClientId]);
+        void loadTemplates();
+        void loadClients();
+    }, [loadTemplates, loadClients]);
 
 
 
