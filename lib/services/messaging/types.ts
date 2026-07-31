@@ -69,9 +69,13 @@ export interface IWhatsAppProvider {
     sendToGroup?(groupId: string, message: string, config: WhatsAppConfig): Promise<MessageResult>;
 }
 
+/**
+ * ULS Transport sends through one account per channel, so nothing here is
+ * scoped to a client — the `scopeId` these methods used to take pointed at
+ * a per-client credential set that never made sense for a transporter.
+ */
 export interface IMessagingService {
-    sendEmail(message: EmailMessage, scopeId?: string): Promise<MessageResult>;
-    sendWhatsApp(message: WhatsAppMessage, scopeId?: string): Promise<MessageResult>;
-    getConfig(scopeId: string): Promise<any>;
-    updateConfig(scopeId: string, type: string, config: any): Promise<void>;
+    sendEmail(message: EmailMessage, options?: { isAuto?: boolean; templateId?: string }): Promise<MessageResult>;
+    sendWhatsApp(message: WhatsAppMessage, options?: { isAuto?: boolean; templateId?: string }): Promise<MessageResult>;
+    updateConfig(config: Record<string, unknown>): Promise<void>;
 }

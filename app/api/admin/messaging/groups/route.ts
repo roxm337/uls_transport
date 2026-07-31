@@ -1,35 +1,28 @@
 /**
  * WaSender Groups Proxy
  * Fetches WhatsApp groups from WaSender API using the stored (encrypted) API key
- * GET /api/admin/messaging/groups?clientId=xxx
+ * GET /api/admin/messaging/groups
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { requireSection } from '@/lib/server/staff-auth';
 import { prisma } from '@/lib/db';
 import { decryptCredential } from '@/lib/services/messaging';
 
 
-export async function GET(request: NextRequest) {
+export async function GET() {
     try {
         const guard = await requireSection('/admin/messaging');
         if (!guard.ok) return guard.response;
 
-        const { searchParams } = new URL(request.url);
-        const clientId = searchParams.get('clientId');
-
-        if (!clientId) {
-            return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
-        }
-
-        // Load stored config to get API key and URL
-        const config = await prisma.messagingConfig.findFirst({
-            where: { clientId },
+        // One WhatsApp account for the company, so no client to scope by.
+        const config = await prisma.messagingConfig.findUnique({
+            where: { key: 'uls' },
         });
 
         if (!config || !config.whatsappApiKey) {
             return NextResponse.json(
-                { error: 'WhatsApp not configured for this client' },
+                { error: "WhatsApp n'est pas configuré." },
                 { status: 400 }
             );
         }

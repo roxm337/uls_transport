@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import {
     ArrowLeft, Pencil, Trash, Plus, Mail, Phone, MapPin, FileText,
-    Building2, Truck, Star, Loader2, UserRound,
+    Building2, Truck, Star, Loader2, UserRound, BellRing, BellOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -127,6 +127,20 @@ export default function ClientDetailPage() {
                         <div className="mt-1 flex flex-wrap items-center gap-2">
                             <Badge variant="outline" className={CLIENT_STATUS_STYLES[client.status] ?? ''}>
                                 {client.status}
+                            </Badge>
+                            {/* Whether ULS writes to this client automatically.
+                                Worth seeing without opening the form: it is the
+                                difference between a silent client and one that
+                                gets a message on every status change. */}
+                            <Badge
+                                variant="outline"
+                                className={client.notificationsEnabled
+                                    ? 'gap-1 border-sky-200 bg-sky-50 text-sky-700'
+                                    : 'gap-1 border-slate-200 bg-slate-50 text-slate-500'}
+                            >
+                                {client.notificationsEnabled
+                                    ? <><BellRing className="h-3 w-3" /> Notifications activées</>
+                                    : <><BellOff className="h-3 w-3" /> Notifications désactivées</>}
                             </Badge>
                             {client.siret && (
                                 <span className="text-xs font-mono text-slate-400">SIRET {client.siret}</span>

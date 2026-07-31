@@ -91,12 +91,14 @@ async function run({ expeditionId, kind, previousStatus }: NotifyInput): Promise
 
     const client = expedition.client;
     const messaging = new MessagingService();
-    const status = await messaging.getStatus(client.id);
+    const status = await messaging.getStatus();
 
-    // The per-client master switch. Off means this client has not opted in
-    // to any automatic messaging, whatever the channels say.
-    if (!status.clientMessagingEnabled) {
-        return { ...NOTHING, skipped: 'client-messaging-disabled' };
+    // Two switches, and both must be on: ULS has to have the channel set up
+    // and auto-send enabled (below), and this particular client has to have
+    // been opted in. The client switch is what keeps "activer l'envoi
+    // automatique" from writing to every client on file at once.
+    if (!client.notificationsEnabled) {
+        return { ...NOTHING, skipped: 'client-opted-out' };
     }
 
     const eventKey = kind === 'created' ? 'created' : expedition.status;
@@ -130,7 +132,6 @@ async function run({ expeditionId, kind, previousStatus }: NotifyInput): Promise
 
             const result = await messaging.sendEmail(
                 { to: emailTo, subject, text, html: TemplateRenderer.textToHtml(text) },
-                client.id,
                 { isAuto: true, templateId: template.id }
             );
             outcome.emailSent = result.success;
@@ -146,7 +147,6 @@ async function run({ expeditionId, kind, previousStatus }: NotifyInput): Promise
 
             const result = await messaging.sendWhatsApp(
                 { to: whatsappTo, text, isFullMessage: true },
-                client.id,
                 { isAuto: true, templateId: template.id }
             );
             outcome.whatsappSent = result.success;
@@ -161,11 +161,10 @@ async function run({ expeditionId, kind, previousStatus }: NotifyInput): Promise
     if (status.staffNotifyEnabled) {
         const line = staffLine(expedition, client, kind, previousStatus);
         const result = status.staffNotifyMode === 'group' && status.staffNotifyGroupId
-            ? await messaging.sendWhatsAppToGroup(status.staffNotifyGroupId, line, client.id)
+            ? await messaging.sendWhatsAppToGroup(status.staffNotifyGroupId, line)
             : status.staffNotifyPhone
                 ? await messaging.sendWhatsApp(
                     { to: status.staffNotifyPhone, text: line, isFullMessage: true },
-                    client.id,
                     { isAuto: true }
                 )
                 : { success: false, error: 'No staff recipient configured' };

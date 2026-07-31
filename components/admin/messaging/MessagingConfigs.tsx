@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { Info } from 'lucide-react';
 import { useAdminRole } from '@/components/admin/AdminLayoutClient';
 import {
     Card,
@@ -64,13 +66,22 @@ import {
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+/**
+ * The messaging configuration of ULS Transport.
+ *
+ * There is exactly one: the company's own SMTP account and WhatsApp number,
+ * used to write to every client. This screen used to open on a client
+ * picker, each client carrying its own credentials — which asked whoever
+ * filled it in for a mail server belonging to their customer.
+ *
+ * Which clients are written to automatically is set per client, on the
+ * client's own sheet ("Notifications automatiques").
+ */
 export function MessagingConfigs() {
     const { t } = useLanguage();
     const role = useAdminRole();
-    const [clients, setClients] = useState<any[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
 
-    const [selectedClientId, setSelectedClientId] = useState<string>('');
     const [config, setConfig] = useState<any>(null);
     const [isLoadingConfig, setIsLoadingConfig] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -84,143 +95,90 @@ export function MessagingConfigs() {
     const [isLoadingGroups, setIsLoadingGroups] = useState(false);
 
     const fetchGroups = async () => {
-        if (!selectedClientId) return;
         setIsLoadingGroups(true);
         setGroups([]);
         try {
-            const res = await fetch(`/api/admin/messaging/groups?clientId=${selectedClientId}`);
+            const res = await fetch('/api/admin/messaging/groups');
             const data = await res.json();
             if (res.ok && data.groups) {
                 setGroups(data.groups);
-                if (data.groups.length === 0) toast.info('No groups found on this WaSender account');
+                if (data.groups.length === 0) toast.info('Aucun groupe sur ce compte WaSender.');
             } else {
-                toast.error(data.error || 'Failed to fetch groups');
+                toast.error(data.error || 'Chargement des groupes impossible.');
             }
         } catch {
-            toast.error('Failed to fetch groups');
+            toast.error('Chargement des groupes impossible.');
         } finally {
             setIsLoadingGroups(false);
         }
     };
 
     useEffect(() => {
-        fetchInitialData();
+        void fetchConfig();
     }, []);
 
-    useEffect(() => {
-        if (selectedClientId) {
-            fetchConfig(selectedClientId);
-            setTestResults({});
-        } else {
-            setConfig(null);
-        }
-    }, [selectedClientId]);
-
-    const fetchInitialData = async () => {
-        try {
-            const clientsRes = await fetch('/api/admin/users/clients');
-
-            if (clientsRes.ok) {
-                const clientsData = await clientsRes.json();
-                const clientList = clientsData.clients || [];
-                setClients(clientList);
-
-                if (clientList.length > 0) {
-                    setSelectedClientId(clientList[0].id);
-                }
-            }
-        } catch (error) {
-            console.error('Failed to fetch clients:', error);
-            toast.error('Failed to load clients');
-        } finally {
-            setIsLoadingData(false);
-        }
-    };
-
-    const fetchConfig = async (clientId: string) => {
+    const fetchConfig = async () => {
         setIsLoadingConfig(true);
         try {
-            const configRes = await fetch(`/api/admin/messaging/config?clientId=${clientId}`);
+            const configRes = await fetch('/api/admin/messaging/config', { cache: 'no-store' });
 
             if (configRes.ok) {
-                const data = await configRes.json();
-                setConfig(data);
+                setConfig(await configRes.json());
             } else {
-                setConfig({
-                    clientMessagingEnabled: false,
-                    smtpEnabled: false,
-                    smtpAutoSend: false,
-                    whatsappEnabled: false,
-                    whatsappAutoSend: false,
-                    whatsappTimeout: 0,
-                    whatsappTemplate: '',
-                    whatsappProvider: 'wasender',
-                    smtpEncryption: 'TLS',
-                    smtpPort: 587,
-                    staffNotifyEnabled: false,
-                    staffNotifyPhone: '',
-                    staffNotifyGroupId: '',
-                    staffNotifyMode: 'phone',
-                });
+                toast.error('Chargement de la configuration impossible.');
+                setConfig(null);
             }
         } catch (error) {
             console.error('Failed to fetch config:', error);
             setConfig(null);
-            toast.error('Failed to load configuration');
+            toast.error('Chargement de la configuration impossible.');
         } finally {
             setIsLoadingConfig(false);
+            setIsLoadingData(false);
         }
     };
 
     const handleDelete = async () => {
-        if (!selectedClientId) return;
-
         setIsSaving(true);
         try {
-            const response = await fetch(`/api/admin/messaging/config?clientId=${selectedClientId}`, {
+            const response = await fetch('/api/admin/messaging/config', {
                 method: 'DELETE'
             });
 
             if (response.ok) {
-                toast.success('Configuration deleted');
-                fetchConfig(selectedClientId);
+                toast.success('Configuration réinitialisée.');
+                await fetchConfig();
                 setTestResults({});
             } else {
-                toast.error('Failed to delete configuration');
+                toast.error('Réinitialisation impossible.');
             }
-        } catch (error) {
-            toast.error('Failed to delete configuration');
+        } catch {
+            toast.error('Réinitialisation impossible.');
         } finally {
             setIsSaving(false);
         }
     };
 
     const handleSave = async () => {
-        if (!selectedClientId) return;
-
         setIsSaving(true);
         try {
-            // Strip DB-internal fields before sending to avoid payload bloat
-            // (the `config` column stores a JSON snapshot that grows on every save)
-            const { id, config: _configBlob, type, clientId: _cid, createdAt, updatedAt,
-                    messageLogs, ...configToSend } = config as any;
+            // Strip DB-internal fields before sending.
+            const { id, key, createdAt, updatedAt, messageLogs, ...configToSend } = config as any;
 
             const response = await fetch('/api/admin/messaging/config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    clientId: selectedClientId,
-                    config: configToSend
-                })
+                body: JSON.stringify({ config: configToSend })
             });
 
             if (response.ok) {
                 toast.success(t.messaging.config.toasts.saveSuccess);
-                fetchConfig(selectedClientId);
+                await fetchConfig();
             } else {
-                toast.error(t.messaging.config.toasts.saveError);
+                const data = await response.json().catch(() => ({}));
+                toast.error(data.error || t.messaging.config.toasts.saveError);
             }
-        } catch (error) {
+        } catch {
             toast.error(t.messaging.config.toasts.saveError);
         } finally {
             setIsSaving(false);
@@ -228,8 +186,6 @@ export function MessagingConfigs() {
     };
 
     const handleTest = async (channel: 'email' | 'whatsapp') => {
-        if (!selectedClientId) return;
-
         setIsTesting(channel);
         try {
             const response = await fetch('/api/admin/messaging/test', {
@@ -296,79 +252,38 @@ export function MessagingConfigs() {
                 animate={{ opacity: 1 }}
                 className="space-y-6"
             >
-                {/* Client Selector Card */}
+                {/* Identity of the sender */}
                 <Card className="border-none shadow-sm">
                     <CardHeader className="pb-4">
                         <CardTitle className="flex items-center gap-2">
                             <Server className="h-5 w-5 text-ink-700" />
-                            {t.messaging.config.title}
+                            Compte d&apos;envoi ULS Transport
                         </CardTitle>
-                        <CardDescription>{t.messaging.config.subtitle}</CardDescription>
+                        <CardDescription>
+                            Le compte e-mail et le numéro WhatsApp avec lesquels ULS Transport
+                            écrit à ses clients. Une seule configuration pour toute la société.
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="space-y-2">
-                            <Label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                                {t.messaging.config.client}
-                            </Label>
-                            <Select
-                                value={selectedClientId}
-                                onValueChange={setSelectedClientId}
-                            >
-                                <SelectTrigger className="h-11">
-                                    <SelectValue placeholder="Select client" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {clients.map((client) => (
-                                        <SelectItem key={client.id} value={client.id}>
-                                            <span className="flex items-center gap-2">
-                                                <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-medium">
-                                                    {client.name.charAt(0).toUpperCase()}
-                                                </div>
-                                                {client.name}
-                                            </span>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {selectedClientId && config && (
-                            <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium text-slate-900">
-                                        {t.messaging.config.clientMessagingEnabled}
-                                    </p>
-                                    <p className="text-xs text-slate-500">
-                                        {t.messaging.config.clientMessagingEnabledHint}
-                                    </p>
-                                </div>
-                                <Switch
-                                    checked={!!config.clientMessagingEnabled}
-                                    onCheckedChange={(val) => setConfig({ ...config, clientMessagingEnabled: val })}
-                                    disabled={isLoadingConfig || isSaving}
-                                />
+                        <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50/60 px-4 py-3">
+                            <Info className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" />
+                            <div className="text-sm text-sky-900">
+                                <p className="font-medium">Qui reçoit les notifications&nbsp;?</p>
+                                <p className="text-sky-800">
+                                    L&apos;envoi automatique ci-dessous ne concerne que les clients
+                                    dont la fiche a « Notifications automatiques » activé.{' '}
+                                    <Link href="/admin/clients" className="underline">
+                                        Voir les clients
+                                    </Link>
+                                </p>
                             </div>
-                        )}
-
-                        {clients.length === 0 && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="mt-4 p-4 bg-yellow-50 text-yellow-800 rounded-xl border border-yellow-200 flex items-start gap-3"
-                            >
-                                <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 shrink-0" />
-                                <div>
-                                    <p className="font-medium">No clients found</p>
-                                    <p className="text-sm text-yellow-700">Please create a client first to configure messaging.</p>
-                                </div>
-                            </motion.div>
-                        )}
+                        </div>
                     </CardContent>
                 </Card>
 
                 {/* Config Cards */}
                 <AnimatePresence mode="wait">
-                    {selectedClientId && config && (
+                    {config && (
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}

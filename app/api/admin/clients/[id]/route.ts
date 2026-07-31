@@ -101,6 +101,11 @@ export async function PATCH(
 
         if (body.companyName !== undefined) data.companyName = String(body.companyName).trim();
         if (body.services !== undefined) data.services = serialiseServices(body.services);
+        // A boolean must not go through the `|| null` passthrough above:
+        // `false || null` is null, which would fail a NOT NULL column.
+        if (body.notificationsEnabled !== undefined) {
+            data.notificationsEnabled = Boolean(body.notificationsEnabled);
+        }
         // country has a NOT NULL default; never write null into it
         if (data.country === null) data.country = 'France';
 

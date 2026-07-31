@@ -49,6 +49,7 @@ import {
     Keyboard,
     ChevronRight,
     Settings,
+    Server,
     Zap,
     History
 } from 'lucide-react';
@@ -78,8 +79,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
+/** A client company or one of its named contacts. */
 interface Lead {
     id: string;
+    /** The company this recipient belongs to, for client-scoped templates. */
+    clientId?: string;
     name: string;
     phone: string | null;
     email: string;
@@ -127,12 +131,10 @@ export function MessagingCompose() {
 
     // Lead Selection
     const [leads, setLeads] = useState<Lead[]>([]);
-    const [clients, setClients] = useState<any[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
     const [leadSearchQuery, setLeadSearchQuery] = useState('');
     const [isLeadPopoverOpen, setIsLeadPopoverOpen] = useState(false);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-    const [selectedScopeId, setSelectedScopeId] = useState<string>('');
     const [scopeStatus, setScopeStatus] = useState<any>(null);
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
@@ -189,13 +191,11 @@ export function MessagingCompose() {
         fetchInitialData();
     }, []);
 
+    // One configuration for the company, so the status is loaded once rather
+    // than re-fetched whenever a "sender profile" changed.
     useEffect(() => {
-        if (selectedScopeId) {
-            fetchScopeStatus(selectedScopeId);
-        } else {
-            setScopeStatus(null);
-        }
-    }, [selectedScopeId]);
+        void fetchScopeStatus();
+    }, []);
 
     useEffect(() => {
         setSelectedTemplateId(null);
@@ -237,16 +237,15 @@ export function MessagingCompose() {
         setValidationErrors(errors);
     }, [recipient, subject, message, channel]);
 
-    const fetchScopeStatus = async (scopeId: string) => {
+    const fetchScopeStatus = async () => {
         setIsLoadingStatus(true);
         try {
-            const response = await fetch(`/api/admin/messaging/status?scopeId=${scopeId}`);
+            const response = await fetch('/api/admin/messaging/status', { cache: 'no-store' });
             if (response.ok) {
-                const data = await response.json();
-                setScopeStatus(data);
+                setScopeStatus(await response.json());
             }
         } catch (error) {
-            console.error('Failed to fetch scope status', error);
+            console.error('Failed to fetch messaging status', error);
         } finally {
             setIsLoadingStatus(false);
         }
@@ -254,18 +253,14 @@ export function MessagingCompose() {
 
     const fetchInitialData = async () => {
         try {
-            const [leadsRes, clientsRes] = await Promise.all([
-                fetch('/api/admin/leads'),
-                fetch('/api/admin/users/clients')
-            ]);
+            // Recipients are clients and their contacts. This used to call
+            // /api/admin/leads — an endpoint removed with the lead pipeline,
+            // so the picker had been quietly empty ever since.
+            const res = await fetch('/api/admin/messaging/recipients', { cache: 'no-store' });
 
-            if (leadsRes.ok) {
-                const data = await leadsRes.json();
-                setLeads(data.leads || []);
-            }
-            if (clientsRes.ok) {
-                const data = await clientsRes.json();
-                setClients(data.clients || []);
+            if (res.ok) {
+                const data = await res.json();
+                setLeads(data.recipients || []);
             }
         } catch (error) {
             console.error('Failed to fetch data', error);
@@ -273,10 +268,6 @@ export function MessagingCompose() {
             setIsLoadingData(false);
         }
     };
-
-    const scopeOptions = useMemo(() => [
-        ...clients.map(c => ({ id: c.id, name: `${c.name} (Client)` }))
-    ], [clients]);
 
     const filteredLeads = useMemo(() => {
         if (!leadSearchQuery) return leads.slice(0, 50);
@@ -414,7 +405,6 @@ export function MessagingCompose() {
                     recipient,
                     subject: channel === 'email' ? subject : undefined,
                     message,
-                    scopeId: selectedScopeId || undefined,
                     templateId: selectedTemplateId || undefined
                 })
             });
@@ -653,13 +643,17 @@ export function MessagingCompose() {
                                 </div>
                             </div>
 
-                            {/* Configuration Profile */}
+                            {/* Sending account.
+                                A picker used to sit here choosing which
+                                client's credentials to send with. ULS sends
+                                with its own, so the only thing left to say is
+                                whether that account is ready. */}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <Label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                                        Sender Configuration
+                                        Compte d&apos;envoi
                                     </Label>
-                                    {selectedScopeId && scopeStatus && !scopeStatus.emailSetup && channel === 'email' && (
+                                    {scopeStatus && !scopeStatus.emailSetup && channel === 'email' && (
                                         <Button
                                             variant="link"
                                             size="sm"
@@ -671,10 +665,10 @@ export function MessagingCompose() {
                                             }}
                                         >
                                             <Settings className="h-3 w-3 mr-1" />
-                                            Configure SMTP
+                                            Configurer le SMTP
                                         </Button>
                                     )}
-                                    {selectedScopeId && scopeStatus && !scopeStatus.whatsappSetup && channel === 'whatsapp' && (
+                                    {scopeStatus && !scopeStatus.whatsappSetup && channel === 'whatsapp' && (
                                         <Button
                                             variant="link"
                                             size="sm"
@@ -685,46 +679,28 @@ export function MessagingCompose() {
                                             }}
                                         >
                                             <Settings className="h-3 w-3 mr-1" />
-                                            Configure WhatsApp
+                                            Configurer WhatsApp
                                         </Button>
                                     )}
                                 </div>
-                                <Select
-                                    value={selectedScopeId}
-                                    onValueChange={setSelectedScopeId}
-                                >
-                                    <SelectTrigger className="h-11">
-                                        <SelectValue placeholder="Select sender profile..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {scopeOptions.map((opt) => (
-                                            <SelectItem key={opt.id} value={opt.id}>
-                                                {opt.name}
-                                            </SelectItem>
-                                        ))}
-                                        {scopeOptions.length === 0 && (
-                                            <div className="p-3 text-xs text-slate-500 text-center">
-                                                No configurations available
-                                            </div>
-                                        )}
-                                    </SelectContent>
-                                </Select>
+                                <div className="flex h-11 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
+                                    <Server className="h-4 w-4 shrink-0 text-slate-400" />
+                                    ULS Transport
+                                </div>
 
                                 {/* Status Indicators - Clickable */}
                                 <AnimatePresence>
-                                    {selectedScopeId && scopeStatus && (
+                                    {scopeStatus && (
                                         <motion.div
                                             initial={{ opacity: 0, height: 0 }}
                                             animate={{ opacity: 1, height: 'auto' }}
                                             exit={{ opacity: 0, height: 0 }}
                                             className="flex flex-wrap gap-2 pt-1"
                                         >
-                                            {scopeStatus.isInherited && (
-                                                <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
-                                                    <ArrowUpRight className="h-3 w-3 mr-1" />
-                                                    Inherited from System
-                                                </Badge>
-                                            )}
+                                            {/* An "Inherited from System" badge used to sit
+                                                here, from a time when a client's configuration
+                                                could fall back to a parent one. With a single
+                                                configuration there is nothing to inherit. */}
                                             {channel === 'email' ? (
                                                 <>
                                                     <Badge
@@ -777,7 +753,7 @@ export function MessagingCompose() {
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
-                                {selectedScopeId && isLoadingStatus && (
+                                {isLoadingStatus && (
                                     <div className="flex items-center gap-2 pt-1 text-[10px] text-slate-400">
                                         <Loader2 className="h-3 w-3 animate-spin" />
                                         Checking configuration...
@@ -989,7 +965,7 @@ export function MessagingCompose() {
                                     <div className="flex items-center gap-2">
                                         <TemplatePicker
                                             type={channel}
-                                            scopeId={selectedScopeId}
+                                            scopeId={selectedLead?.clientId}
                                             onSelect={(template) => {
                                                 if (channel === 'email' && template.subject) {
                                                     let subjectText = template.subject;

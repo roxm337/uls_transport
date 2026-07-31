@@ -159,6 +159,7 @@ export async function POST(req: Request) {
                 accountManagerId: body.accountManagerId || null,
                 paymentTerms: body.paymentTerms || null,
                 notes: body.notes || null,
+                notificationsEnabled: Boolean(body.notificationsEnabled),
             },
         });
 

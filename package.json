@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:push": "node --env-file=.env.local ./node_modules/prisma/build/index.js db push",
+    "db:migrate": "node --env-file=.env.local ./node_modules/prisma/build/index.js migrate deploy",
+    "db:migrate:status": "node --env-file=.env.local ./node_modules/prisma/build/index.js migrate status",
     "db:studio": "node --env-file=.env.local ./node_modules/prisma/build/index.js studio",
     "seed": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs prisma/seed.ts"
   },

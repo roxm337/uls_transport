@@ -8,6 +8,8 @@ import { requireSection } from '@/lib/server/staff-auth';
 import { MessagingService, EmailService } from '@/lib/services/messaging';
 import { getWhatsAppProvider } from '@/lib/services/messaging';
 
+/** Placeholder the configuration screen shows in place of a stored secret. */
+const MASK = '********';
 
 /**
  * POST - Test a messaging configuration
@@ -25,6 +27,18 @@ export async function POST(request: NextRequest) {
                 { error: 'type and config are required' },
                 { status: 400 }
             );
+        }
+
+        // The screen holds credentials masked, so testing a saved
+        // configuration without retyping the password sent '********' to the
+        // SMTP server and reported the account as broken. Swap the mask back
+        // for what is stored; a freshly typed value is used as given.
+        const stored = await new MessagingService().getConfig();
+        if (!config.smtpPassword || config.smtpPassword === MASK) {
+            config.smtpPassword = stored.smtpPassword;
+        }
+        if (!config.whatsappApiKey || config.whatsappApiKey === MASK) {
+            config.whatsappApiKey = stored.whatsappApiKey;
         }
 
         if (type === 'email') {

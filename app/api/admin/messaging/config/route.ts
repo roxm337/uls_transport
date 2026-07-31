@@ -1,57 +1,35 @@
 /**
  * Messaging Configuration API
- * Manages email and WhatsApp configurations per client
- * Client config applies to all their landing pages
+ *
+ * One configuration for the whole company: ULS Transport's own SMTP account
+ * and WhatsApp number, used to write to every client. It used to be scoped
+ * per client — each row holding that client's credentials — which never
+ * matched a transporter's reality.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSection, requireAdmin } from '@/lib/server/staff-auth';
-import { prisma } from '@/lib/db';
-import { encryptCredential, decryptCredential } from '@/lib/services/messaging';
+import { MessagingService } from '@/lib/services/messaging';
+import { logAction } from '@/lib/actions';
 
+/** Never hand a stored credential back to the browser. */
+const MASK = '********';
 
 /**
- * GET - Retrieve messaging configuration for a client
- * Client config applies to all their landing pages
+ * GET - the ULS messaging configuration.
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
     try {
         const guard = await requireSection('/admin/messaging');
         if (!guard.ok) return guard.response;
 
-        const { searchParams } = new URL(request.url);
-        const clientId = searchParams.get('clientId') || searchParams.get('scopeId');
+        const config = await new MessagingService().getConfig();
 
-        if (!clientId) {
-            return NextResponse.json(
-                { error: 'clientId is required' },
-                { status: 400 }
-            );
-        }
-
-        // Find configuration for this client
-        const config = await prisma.messagingConfig.findFirst({
-            where: { clientId },
-        });
-
-        if (!config) {
-            // Return empty config instead of 404 to allow creating new one easily
-            return NextResponse.json({
-                clientMessagingEnabled: false,
-                smtpEnabled: false,
-                whatsappEnabled: false,
-                // ... defaults
-            });
-        }
-
-        // Decrypt sensitive fields for display (but mask them partially)
-        const response = {
+        return NextResponse.json({
             ...config,
-            smtpPassword: config.smtpPassword ? '********' : null,
-            whatsappApiKey: config.whatsappApiKey ? '********' : null,
-        };
-
-        return NextResponse.json(response);
+            smtpPassword: config.smtpPassword ? MASK : null,
+            whatsappApiKey: config.whatsappApiKey ? MASK : null,
+        });
     } catch (error) {
         console.error('[API] GET /api/admin/messaging/config error:', error);
         return NextResponse.json(
@@ -62,8 +40,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST - Create or update messaging configuration for a client
- * Client config applies to all their landing pages
+ * POST - write the ULS messaging configuration.
  */
 export async function POST(request: NextRequest) {
     try {
@@ -72,21 +49,16 @@ export async function POST(request: NextRequest) {
         if (!guard.ok) return guard.response;
 
         const body = await request.json();
-        const {
-            clientId,
-            // scopeId, // Removed: strictly use clientId
-            config: configData, // The settings object
-        } = body;
+        const configData = body.config ?? body;
 
-        if (!clientId || !configData) {
+        if (!configData || typeof configData !== 'object') {
             return NextResponse.json(
-                { error: 'clientId and config are required' },
+                { error: 'config is required' },
                 { status: 400 }
             );
         }
 
         const {
-            clientMessagingEnabled,
             smtpEnabled,
             smtpHost,
             smtpPort,
@@ -111,70 +83,61 @@ export async function POST(request: NextRequest) {
             staffNotifyMode,
         } = configData;
 
-        // Prepare data with encryption
-        const data: any = {
-            type: 'client', // Enforce type
-            clientMessagingEnabled: !!clientMessagingEnabled,
-            smtpEnabled: smtpEnabled || false,
-            smtpHost,
-            smtpPort: smtpPort ? parseInt(smtpPort) : null,
-            smtpUsername,
-            smtpPassword: smtpPassword ? encryptCredential(smtpPassword) : null,
-            smtpEncryption,
-            smtpFromName,
-            smtpFromEmail,
-            whatsappEnabled: whatsappEnabled || false,
-            whatsappProvider,
-            whatsappApiKey: whatsappApiKey ? encryptCredential(whatsappApiKey) : null,
-            whatsappApiUrl,
-            smtpAutoSend: smtpAutoSend || false,
-            whatsappAutoSend: whatsappAutoSend || false,
-            whatsappTimeout: whatsappTimeout ? parseInt(whatsappTimeout) : 0,
-            smtpTimeout: smtpTimeout ? parseInt(smtpTimeout) : 0,
+        const messaging = new MessagingService();
+        const existing = await messaging.getConfig();
+
+        const data: Record<string, unknown> = {
+            smtpEnabled: !!smtpEnabled,
+            smtpHost: smtpHost || null,
+            smtpPort: smtpPort ? parseInt(String(smtpPort), 10) : null,
+            smtpUsername: smtpUsername || null,
+            smtpEncryption: smtpEncryption || null,
+            smtpFromName: smtpFromName || null,
+            smtpFromEmail: smtpFromEmail || null,
+            whatsappEnabled: !!whatsappEnabled,
+            whatsappProvider: whatsappProvider || null,
+            whatsappApiUrl: whatsappApiUrl || null,
+            smtpAutoSend: !!smtpAutoSend,
+            whatsappAutoSend: !!whatsappAutoSend,
+            whatsappTimeout: whatsappTimeout ? parseInt(String(whatsappTimeout), 10) : 0,
+            smtpTimeout: smtpTimeout ? parseInt(String(smtpTimeout), 10) : 0,
             whatsappTemplate: whatsappTemplate || null,
-            // Staff notification
-            staffNotifyEnabled: staffNotifyEnabled || false,
+            staffNotifyEnabled: !!staffNotifyEnabled,
             staffNotifyPhone: staffNotifyPhone || null,
             staffNotifyGroupId: staffNotifyGroupId || null,
             staffNotifyMode: staffNotifyMode || 'phone',
         };
 
-        // Check if config exists for this client
-        const existing = await prisma.messagingConfig.findFirst({
-            where: { clientId },
+        // The screen receives credentials masked, so an unchanged field comes
+        // back as the mask. Writing that through would replace the real
+        // secret with eight asterisks.
+        data.smtpPassword = !smtpPassword || smtpPassword === MASK
+            ? existing.smtpPassword
+            : smtpPassword;
+        data.whatsappApiKey = !whatsappApiKey || whatsappApiKey === MASK
+            ? existing.whatsappApiKey
+            : whatsappApiKey;
+
+        await messaging.updateConfig(data);
+        const saved = await messaging.getConfig();
+
+        // Credentials themselves are never logged — only that they changed.
+        await logAction('Update Messaging Config', {
+            smtpEnabled: data.smtpEnabled,
+            whatsappEnabled: data.whatsappEnabled,
+            smtpAutoSend: data.smtpAutoSend,
+            whatsappAutoSend: data.whatsappAutoSend,
+            staffNotifyEnabled: data.staffNotifyEnabled,
+            smtpPasswordChanged: data.smtpPassword !== existing.smtpPassword,
+            whatsappApiKeyChanged: data.whatsappApiKey !== existing.whatsappApiKey,
         });
-
-        let savedConfig;
-        if (existing) {
-            // Update existing config
-            // Only update password/apiKey if new values are provided
-            if (!smtpPassword || smtpPassword === '********') {
-                delete data.smtpPassword;
-            }
-            if (!whatsappApiKey || whatsappApiKey === '********') {
-                delete data.whatsappApiKey;
-            }
-
-            savedConfig = await prisma.messagingConfig.update({
-                where: { id: existing.id },
-                data,
-            });
-        } else {
-            // Create new config for client
-            savedConfig = await prisma.messagingConfig.create({
-                data: {
-                    ...data,
-                    clientId,
-                },
-            });
-        }
 
         return NextResponse.json({
             success: true,
             config: {
-                ...savedConfig,
-                smtpPassword: savedConfig.smtpPassword ? '********' : null,
-                whatsappApiKey: savedConfig.whatsappApiKey ? '********' : null,
+                ...saved,
+                smtpPassword: saved.smtpPassword ? MASK : null,
+                whatsappApiKey: saved.whatsappApiKey ? MASK : null,
             },
         });
     } catch (error) {
@@ -187,39 +150,42 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * DELETE - Remove messaging configuration for a client
+ * DELETE - clear the configuration back to empty.
+ *
+ * The row itself stays: it is a singleton the screen always needs, and
+ * deleting it only to recreate it on the next read would hide the reset.
  */
-export async function DELETE(request: NextRequest) {
+export async function DELETE() {
     try {
         // Writing provider credentials stays ADMIN-only.
         const guard = await requireAdmin();
         if (!guard.ok) return guard.response;
 
-        const { searchParams } = new URL(request.url);
-        const clientId = searchParams.get('clientId');
-
-        if (!clientId) {
-            return NextResponse.json(
-                { error: 'clientId is required' },
-                { status: 400 }
-            );
-        }
-
-        // Find and delete configuration for this client
-        const config = await prisma.messagingConfig.findFirst({
-            where: { clientId },
+        await new MessagingService().updateConfig({
+            smtpEnabled: false,
+            smtpHost: null,
+            smtpPort: null,
+            smtpUsername: null,
+            smtpPassword: null,
+            smtpEncryption: null,
+            smtpFromName: null,
+            smtpFromEmail: null,
+            smtpAutoSend: false,
+            smtpTimeout: 0,
+            whatsappEnabled: false,
+            whatsappProvider: null,
+            whatsappApiKey: null,
+            whatsappApiUrl: null,
+            whatsappAutoSend: false,
+            whatsappTimeout: 0,
+            whatsappTemplate: null,
+            staffNotifyEnabled: false,
+            staffNotifyPhone: null,
+            staffNotifyGroupId: null,
+            staffNotifyMode: 'phone',
         });
 
-        if (!config) {
-            return NextResponse.json(
-                { error: 'Configuration not found' },
-                { status: 404 }
-            );
-        }
-
-        await prisma.messagingConfig.delete({
-            where: { id: config.id },
-        });
+        await logAction('Reset Messaging Config', {});
 
         return NextResponse.json({ success: true });
     } catch (error) {

@@ -24,13 +24,28 @@ L'application démarre sur http://localhost:3000 et redirige vers `/login`.
 | `pnpm dev` | Serveur de développement |
 | `pnpm build` | Build de production (`prisma generate` inclus) |
 | `pnpm start` | Serveur de production |
-| `pnpm db:push` | Applique `prisma/schema.prisma` à la base |
+| `pnpm db:push` | Applique `prisma/schema.prisma` à la base (dev, sans historique) |
+| `pnpm db:migrate` | Applique les migrations `prisma/migrations` (**à utiliser sur une base existante**) |
+| `pnpm db:migrate:status` | État des migrations |
 | `pnpm db:studio` | Prisma Studio |
 | `pnpm seed` | Peuple la base (voir `prisma/seed.ts`) |
 | `pnpm lint` | ESLint |
 
 Les scripts `db:*` et `seed` chargent `.env.local` via `node --env-file`,
 car la CLI Prisma ne lit que `.env`.
+
+> **Sur une base qui contient déjà des données, utilisez `pnpm db:migrate`,
+> pas `pnpm db:push`.** La migration `20260731120000_single_uls_messaging_config`
+> déplace des données avant de supprimer des colonnes : elle reporte l'opt-in
+> de chaque client vers `Client.notificationsEnabled` et rattache les
+> journaux de messages à la configuration conservée. `db push` se
+> contenterait de supprimer les colonnes — l'opt-in et l'historique seraient
+> perdus.
+>
+> Une base créée par `db push` n'a pas d'historique de migrations : la
+> marquer une seule fois avec
+> `prisma migrate resolve --applied <nom>` pour chaque migration antérieure,
+> puis `pnpm db:migrate`.
 
 ## Variables d'environnement
 
@@ -54,7 +69,7 @@ Tout est dans `.env.local` (ignoré par git) :
 
 | Modèle | Rôle |
 | --- | --- |
-| `Client` | Donneur d'ordre : raison sociale, SIRET, adresse, statut, services souscrits |
+| `Client` | Donneur d'ordre : raison sociale, SIRET, adresse, statut, services souscrits, chargé de compte, notifications |
 | `ClientContact` | Contacts rattachés à un client |
 | `Expedition` | Transport : référence `ULS-AAAA-NNNN`, service ULS, enlèvement, livraison, marchandise, statut, prix |
 | `User` | Compte interne (`ADMIN` ou `MANAGER`) |
@@ -71,13 +86,21 @@ sert aussi de source pour la date de livraison réelle en analytique, que
 
 ## Notifications automatiques
 
-Créer une expédition ou changer son statut déclenche une notification, si —
-et seulement si — le client concerné est configuré pour :
+ULS Transport dispose d'**une seule** configuration d'envoi : son propre
+compte SMTP et son propre numéro WhatsApp, avec lesquels elle écrit à tous
+ses clients (`MessagingConfig`, ligne unique `key = "uls"`).
 
-1. **Messagerie → Configuration**, pour ce client : activer la messagerie
-   client, puis l'envoi automatique e-mail et/ou WhatsApp. La notification
-   à l'exploitation (numéro ou groupe WhatsApp) se règle au même endroit.
-2. **Messagerie → Modèles** : créer un modèle dont la catégorie est
+Créer une expédition ou changer son statut déclenche une notification, si —
+et seulement si — les trois conditions suivantes sont réunies :
+
+1. **Messagerie → Configuration** : le canal (SMTP et/ou WhatsApp) est
+   renseigné *et* son envoi automatique est activé. La notification à
+   l'exploitation (numéro ou groupe WhatsApp) se règle au même endroit.
+2. **Fiche client** : « Notifications automatiques » est coché
+   (`Client.notificationsEnabled`, désactivé par défaut). C'est le seul
+   réglage de messagerie propre à un client — les identifiants, eux,
+   appartiennent à ULS.
+3. **Messagerie → Modèles** : il existe un modèle dont la catégorie est
    « Expédition — … ». La catégorie détermine le moment de l'envoi
    (`expedition:created`, `expedition:Livree`, …).
 

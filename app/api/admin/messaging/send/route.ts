@@ -15,7 +15,10 @@ export async function POST(request: NextRequest) {
         if (!guard.ok) return guard.response;
 
         const body = await request.json();
-        const { channel, recipient, subject, message, scopeId, templateId } = body;
+        // `scopeId` used to name the client whose credentials to send with.
+        // ULS sends with its own, so the only client that matters here is
+        // the recipient, which the caller already resolved to an address.
+        const { channel, recipient, subject, message, templateId } = body;
 
         if (!channel || !recipient || !message) {
             return NextResponse.json(
@@ -34,20 +37,18 @@ export async function POST(request: NextRequest) {
                     { status: 400 }
                 );
             }
-            console.log('[Send API] Attempting to send email to:', recipient, 'with scopeId:', scopeId);
             result = await messagingService.sendEmail({
                 to: recipient,
                 subject,
                 text: message,
                 html: `<p>${message.replace(/\n/g, '<br>')}</p>`,
-            }, scopeId, { templateId });
-            console.log('[Send API] Email send result:', JSON.stringify(result, null, 2));
+            }, { templateId });
         } else if (channel === 'whatsapp') {
             result = await messagingService.sendWhatsApp({
                 to: recipient,
                 text: message,
                 isFullMessage: true, // Manual sends are always full messages
-            }, scopeId, { templateId });
+            }, { templateId });
         } else {
             return NextResponse.json(
                 { error: 'Invalid channel. Must be "email" or "whatsapp"' },

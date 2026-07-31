@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { requireSection } from '@/lib/server/staff-auth';
 import { prisma } from '@/lib/db';
 
@@ -17,32 +18,17 @@ export async function GET(request: NextRequest) {
         if (!guard.ok) return guard.response;
 
         const { searchParams } = new URL(request.url);
-        const scopeId = searchParams.get('scopeId');
         const channel = searchParams.get('channel'); // 'email' or 'whatsapp'
         const status = searchParams.get('status'); // 'sent', 'failed', 'pending'
         const recipient = searchParams.get('recipient'); // Filter by recipient
         const limit = parseInt(searchParams.get('limit') || '50');
         const offset = parseInt(searchParams.get('offset') || '0');
 
-        // Build where clause
-        const where: any = {};
-
-        if (scopeId) {
-            // Find config for this scope
-            const config = await prisma.messagingConfig.findFirst({
-                where: { clientId: scopeId },
-            });
-
-            if (config) {
-                where.configId = config.id;
-            } else {
-                // No config found, return empty results
-                return NextResponse.json({
-                    logs: [],
-                    total: 0,
-                });
-            }
-        }
+        // Filtering by `scopeId` — the client whose configuration sent the
+        // message — is gone with the per-client configurations. Every message
+        // now leaves through the one ULS account, so the useful question is
+        // who it went *to*: that is `recipient`.
+        const where: Prisma.MessageLogWhereInput = {};
 
         if (channel) {
             where.channel = channel;
@@ -66,11 +52,7 @@ export async function GET(request: NextRequest) {
                 take: limit,
                 skip: offset,
                 include: {
-                    config: {
-                        select: {
-                            clientId: true,
-                        },
-                    },
+                    template: { select: { name: true, category: true } },
                 },
             }),
             prisma.messageLog.count({ where }),

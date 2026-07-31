@@ -27,6 +27,8 @@ export interface Client {
     accountManager?: { id: string; name: string } | null;
     paymentTerms: string | null;
     notes: string | null;
+    /** Receives the automatic transport notifications sent by ULS. */
+    notificationsEnabled: boolean;
     createdAt: string;
     updatedAt: string;
     _count?: { expeditions: number; contacts: number };

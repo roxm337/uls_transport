@@ -3,20 +3,18 @@ import { requireSection } from '@/lib/server/staff-auth';
 import { MessagingService } from '@/lib/services/messaging/messaging-service';
 
 
-export async function GET(request: Request) {
+/**
+ * What is set up and what is switched on, for the ULS configuration.
+ *
+ * No longer takes a `scopeId`: there is one configuration, so "the status
+ * of client X's messaging" no longer means anything.
+ */
+export async function GET() {
     try {
         const guard = await requireSection('/admin/messaging');
         if (!guard.ok) return guard.response;
 
-        const { searchParams } = new URL(request.url);
-        const scopeId = searchParams.get('scopeId');
-
-        if (!scopeId) {
-            return NextResponse.json({ error: 'scopeId is required' }, { status: 400 });
-        }
-
-        const messagingService = new MessagingService();
-        const status = await messagingService.getStatus(scopeId);
+        const status = await new MessagingService().getStatus();
 
         return NextResponse.json(status);
     } catch (error) {

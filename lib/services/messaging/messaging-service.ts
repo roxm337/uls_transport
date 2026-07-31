@@ -1,47 +1,72 @@
 /**
  * Unified Messaging Service
- * Orchestrates email and WhatsApp messaging with configuration management
+ *
+ * ULS Transport sends through one SMTP account and one WhatsApp number, so
+ * there is one configuration for the whole company. Every method here used
+ * to take a `clientId` and look up that client's own credentials — a shape
+ * inherited from a multi-tenant codebase. A client is who you write *to*;
+ * it never had a mail server of its own.
+ *
+ * Whether a given client is written to is `Client.notificationsEnabled`,
+ * checked by the caller (see lib/server/expedition-notifications.ts).
  */
 
 import { prisma } from '@/lib/db';
+import type { MessagingConfig } from '@prisma/client';
 import { IMessagingService, EmailMessage, WhatsAppMessage, MessageResult, EmailConfig, WhatsAppConfig } from './types';
 import { EmailService } from './email-service';
 import { getWhatsAppProvider } from './providers';
 import { decryptCredential, encryptCredential } from './crypto';
 
+/** The one and only configuration row. */
+const SINGLETON_KEY = 'uls';
+
+/** Everything the configuration screen and the senders need to know. */
+export interface MessagingStatus {
+    emailSetup: boolean;
+    whatsappSetup: boolean;
+    emailAutoSend: boolean;
+    whatsappAutoSend: boolean;
+    whatsappTimeout: number;
+    smtpTimeout: number;
+    whatsappTemplate?: string;
+    /** Operational ping to the ULS team. */
+    staffNotifyEnabled: boolean;
+    staffNotifyMode: string;
+    staffNotifyPhone: string | null;
+    staffNotifyGroupId: string | null;
+}
+
 export class MessagingService implements IMessagingService {
     private emailService = new EmailService();
 
     /**
-     * Send an email using the configuration for the given client
+     * Send an email through the ULS SMTP account.
+     *
      * @param message - Email message to send
-     * @param clientId - Client ID (REQUIRED)
-     * @param options - Optional sending options
+     * @param options - `isAuto` marks an automatic send, which is skipped
+     *                  unless auto-send is switched on
      */
-    async sendEmail(message: EmailMessage, clientId?: string, options?: { isAuto?: boolean; templateId?: string }): Promise<MessageResult> {
+    async sendEmail(
+        message: EmailMessage,
+        options?: { isAuto?: boolean; templateId?: string }
+    ): Promise<MessageResult> {
         try {
-            if (!clientId) {
-                return {
-                    success: false,
-                    error: 'Client ID is required for sending emails',
-                };
-            }
-
-            const config = await this.getEmailConfig(clientId);
+            const config = await this.getEmailConfig();
 
             if (!config) {
                 return {
                     success: false,
-                    error: `No email configuration found for client: ${clientId}`
+                    error: "L'envoi d'e-mail n'est pas configuré (Messagerie → Configuration).",
                 };
             }
 
             // Centralized control logic: skip if it's an auto-send and auto-send is disabled
             if (options?.isAuto && !config.autoSend) {
-                console.log(`[MessagingService] Auto-send email disabled for client: ${clientId}. Skipping.`);
+                console.log('[MessagingService] Auto-send email disabled. Skipping.');
                 return {
                     success: false,
-                    error: 'Auto-send email is disabled for this configuration'
+                    error: 'Auto-send email is disabled',
                 };
             }
 
@@ -72,35 +97,28 @@ export class MessagingService implements IMessagingService {
     }
 
     /**
-     * Send a WhatsApp message using the configuration for the given client
-     * @param message - WhatsApp message to send
-     * @param clientId - Client ID (REQUIRED)
-     * @param options - Optional sending options
+     * Send a WhatsApp message through the ULS number.
      */
-    async sendWhatsApp(message: WhatsAppMessage, clientId?: string, options?: { isAuto?: boolean; templateId?: string }): Promise<MessageResult> {
+    async sendWhatsApp(
+        message: WhatsAppMessage,
+        options?: { isAuto?: boolean; templateId?: string }
+    ): Promise<MessageResult> {
         try {
-            if (!clientId) {
-                return {
-                    success: false,
-                    error: 'Client ID is required for sending WhatsApp messages',
-                };
-            }
-
-            const config = await this.getWhatsAppConfig(clientId);
+            const config = await this.getWhatsAppConfig();
 
             if (!config) {
                 return {
                     success: false,
-                    error: `No WhatsApp configuration found for client: ${clientId}`
+                    error: "L'envoi WhatsApp n'est pas configuré (Messagerie → Configuration).",
                 };
             }
 
             // Centralized control logic: skip if it's an auto-send and auto-send is disabled
             if (options?.isAuto && !config.autoSend) {
-                console.log(`[MessagingService] Auto-send WhatsApp disabled for client: ${clientId}. Skipping.`);
+                console.log('[MessagingService] Auto-send WhatsApp disabled. Skipping.');
                 return {
                     success: false,
-                    error: 'Auto-send WhatsApp is disabled for this configuration'
+                    error: 'Auto-send WhatsApp is disabled',
                 };
             }
 
@@ -145,18 +163,14 @@ export class MessagingService implements IMessagingService {
      * expose it, so the "notifier un groupe" option in the configuration
      * screen had no way to reach it.
      */
-    async sendWhatsAppToGroup(
-        groupId: string,
-        text: string,
-        clientId: string
-    ): Promise<MessageResult> {
+    async sendWhatsAppToGroup(groupId: string, text: string): Promise<MessageResult> {
         try {
-            const config = await this.getWhatsAppConfig(clientId);
+            const config = await this.getWhatsAppConfig();
 
             if (!config) {
                 return {
                     success: false,
-                    error: `No WhatsApp configuration found for client: ${clientId}`
+                    error: "L'envoi WhatsApp n'est pas configuré (Messagerie → Configuration).",
                 };
             }
 
@@ -193,46 +207,25 @@ export class MessagingService implements IMessagingService {
     }
 
     /**
-     * Get default template for auto-send
-     * @param type - 'email' or 'whatsapp'
-     * @param clientId - Client ID
-     * @returns Default template for the type and client, or null if none found
+     * Default template for automatic sends.
+     *
+     * A client may still have templates of its own — per-client *wording* is
+     * legitimate in a way that per-client *credentials* never were — so a
+     * client template outranks the global one.
      */
-    async getDefaultTemplate(type: 'email' | 'whatsapp', clientId?: string): Promise<any> {
+    async getDefaultTemplate(type: 'email' | 'whatsapp', clientId?: string) {
         try {
             if (clientId) {
                 const clientTemplate = await prisma.messageTemplate.findFirst({
-                    where: {
-                        type,
-                        isDefault: true,
-                        status: 'active',
-                        clientId
-                    }
+                    where: { type, isDefault: true, status: 'active', clientId },
                 });
 
-                if (clientTemplate) {
-                    console.log(`[MessagingService] Found client default template: ${clientTemplate.name}`);
-                    return clientTemplate;
-                }
+                if (clientTemplate) return clientTemplate;
             }
 
-
-            // 2. Fallback to global default template
-            const globalTemplate = await prisma.messageTemplate.findFirst({
-                where: {
-                    type,
-                    isDefault: true,
-                    status: 'active',
-                    scope: 'global'
-                }
+            return await prisma.messageTemplate.findFirst({
+                where: { type, isDefault: true, status: 'active', scope: 'global' },
             });
-
-            if (globalTemplate) {
-                return globalTemplate;
-            }
-
-            console.log(`[MessagingService] No default ${type} template found (client: ${clientId} or global)`);
-            return null;
         } catch (error) {
             console.error('[MessagingService] Error getting default template:', error);
             return null;
@@ -240,18 +233,19 @@ export class MessagingService implements IMessagingService {
     }
 
     /**
-     * Get messaging configuration for a client
+     * The ULS configuration, with credentials decrypted.
+     *
+     * Always returns a row: the migration seeds an empty one, and this
+     * recreates it if it is ever removed, so the screen always has
+     * something to edit.
      */
-    async getConfig(clientId: string): Promise<any> {
-        const config = await prisma.messagingConfig.findFirst({
-            where: { clientId },
+    async getConfig(): Promise<MessagingConfig> {
+        const config = await prisma.messagingConfig.upsert({
+            where: { key: SINGLETON_KEY },
+            update: {},
+            create: { key: SINGLETON_KEY },
         });
 
-        if (!config) {
-            return null;
-        }
-
-        // Decrypt sensitive fields
         return {
             ...config,
             smtpPassword: config.smtpPassword ? decryptCredential(config.smtpPassword) : null,
@@ -259,118 +253,57 @@ export class MessagingService implements IMessagingService {
         };
     }
 
-    /**
-     * Get the setup status for a client
-     */
-    async getStatus(clientId: string): Promise<{
-        clientMessagingEnabled: boolean;
-        emailSetup: boolean;
-        whatsappSetup: boolean;
-        emailAutoSend: boolean;
-        whatsappAutoSend: boolean;
-        whatsappTimeout: number;
-        smtpTimeout: number;
-        whatsappTemplate?: string;
-        /** Exploitation ping settings, read by the notification trigger. */
-        staffNotifyEnabled: boolean;
-        staffNotifyMode: string;
-        staffNotifyPhone: string | null;
-        staffNotifyGroupId: string | null;
-        isInherited: boolean; // Always false now
-    }> {
-        const config = await this.getConfig(clientId);
+    /** What is set up and what is switched on. */
+    async getStatus(): Promise<MessagingStatus> {
+        const config = await this.getConfig();
 
-        if (config) {
-            const emailSetup = !!(config.smtpEnabled && config.smtpHost && config.smtpPassword);
-            const whatsappSetup = !!(config.whatsappEnabled && config.whatsappApiKey);
-
-            return {
-                clientMessagingEnabled: !!config.clientMessagingEnabled,
-                emailSetup,
-                whatsappSetup,
-                // Auto-send can only be true if the channel is actually set up
-                emailAutoSend: emailSetup && !!config.smtpAutoSend,
-                whatsappAutoSend: whatsappSetup && !!config.whatsappAutoSend,
-                whatsappTimeout: config.whatsappTimeout || 0,
-                smtpTimeout: config.smtpTimeout || 0,
-                whatsappTemplate: config.whatsappTemplate || '',
-                // Staff pings ride the same WhatsApp credentials, so they
-                // are only live once that channel is actually configured.
-                staffNotifyEnabled: whatsappSetup && !!config.staffNotifyEnabled,
-                staffNotifyMode: config.staffNotifyMode || 'phone',
-                staffNotifyPhone: config.staffNotifyPhone || null,
-                staffNotifyGroupId: config.staffNotifyGroupId || null,
-                isInherited: false
-            };
-        }
+        const emailSetup = !!(config.smtpEnabled && config.smtpHost && config.smtpPassword);
+        const whatsappSetup = !!(config.whatsappEnabled && config.whatsappApiKey);
 
         return {
-            clientMessagingEnabled: false,
-            emailSetup: false,
-            whatsappSetup: false,
-            emailAutoSend: false,
-            whatsappAutoSend: false,
-            whatsappTimeout: 0,
-            smtpTimeout: 0,
-            staffNotifyEnabled: false,
-            staffNotifyMode: 'phone',
-            staffNotifyPhone: null,
-            staffNotifyGroupId: null,
-            isInherited: false,
+            emailSetup,
+            whatsappSetup,
+            // Auto-send can only be true if the channel is actually set up
+            emailAutoSend: emailSetup && config.smtpAutoSend,
+            whatsappAutoSend: whatsappSetup && config.whatsappAutoSend,
+            whatsappTimeout: config.whatsappTimeout || 0,
+            smtpTimeout: config.smtpTimeout || 0,
+            whatsappTemplate: config.whatsappTemplate || '',
+            // Staff pings ride the same WhatsApp credentials, so they are
+            // only live once that channel is actually configured.
+            staffNotifyEnabled: whatsappSetup && config.staffNotifyEnabled,
+            staffNotifyMode: config.staffNotifyMode || 'phone',
+            staffNotifyPhone: config.staffNotifyPhone || null,
+            staffNotifyGroupId: config.staffNotifyGroupId || null,
         };
     }
 
-    /**
-     * Update messaging configuration for a client
-     */
-    async updateConfig(clientId: string, _type: string, config: any): Promise<void> {
-        // Encrypt sensitive fields
-        const encryptedConfig = {
+    /** Write the configuration, encrypting the credentials. */
+    async updateConfig(config: Record<string, unknown>): Promise<void> {
+        const data = {
             ...config,
-            smtpPassword: config.smtpPassword ? encryptCredential(config.smtpPassword) : null,
-            whatsappApiKey: config.whatsappApiKey ? encryptCredential(config.whatsappApiKey) : null,
+            smtpPassword: config.smtpPassword
+                ? encryptCredential(String(config.smtpPassword))
+                : null,
+            whatsappApiKey: config.whatsappApiKey
+                ? encryptCredential(String(config.whatsappApiKey))
+                : null,
         };
 
-        // Check if config exists for this client
-        const existing = await prisma.messagingConfig.findFirst({
-            where: { clientId },
+        await prisma.messagingConfig.upsert({
+            where: { key: SINGLETON_KEY },
+            update: data,
+            create: { ...data, key: SINGLETON_KEY },
         });
-
-        const data: any = {
-            ...encryptedConfig,
-            config: encryptedConfig,
-            type: 'client', // Enforce type
-        };
-
-        if (existing) {
-            // Update existing config
-            await prisma.messagingConfig.update({
-                where: { id: existing.id },
-                data,
-            });
-        } else {
-            // Create new config for client
-            await prisma.messagingConfig.create({
-                data: {
-                    ...data,
-                    clientId,
-                },
-            });
-        }
     }
 
-    /**
-     * Get email configuration for a client
-     */
-    private async getEmailConfig(clientId: string): Promise<EmailConfig | null> {
-        const config = await prisma.messagingConfig.findFirst({
-            where: {
-                clientId,
-                smtpEnabled: true,
-            },
+    /** SMTP settings, or null when e-mail is not usable. */
+    private async getEmailConfig(): Promise<EmailConfig | null> {
+        const config = await prisma.messagingConfig.findUnique({
+            where: { key: SINGLETON_KEY },
         });
 
-        if (config && config.smtpHost && config.smtpPassword) {
+        if (config?.smtpEnabled && config.smtpHost && config.smtpPassword) {
             return {
                 id: config.id,
                 host: config.smtpHost,
@@ -387,18 +320,13 @@ export class MessagingService implements IMessagingService {
         return null;
     }
 
-    /**
-     * Get WhatsApp configuration for a client
-     */
-    private async getWhatsAppConfig(clientId: string): Promise<WhatsAppConfig | null> {
-        const config = await prisma.messagingConfig.findFirst({
-            where: {
-                clientId,
-                whatsappEnabled: true,
-            },
+    /** WhatsApp settings, or null when WhatsApp is not usable. */
+    private async getWhatsAppConfig(): Promise<WhatsAppConfig | null> {
+        const config = await prisma.messagingConfig.findUnique({
+            where: { key: SINGLETON_KEY },
         });
 
-        if (config && config.whatsappApiKey) {
+        if (config?.whatsappEnabled && config.whatsappApiKey) {
             return {
                 id: config.id,
                 provider: config.whatsappProvider || 'wasender',
@@ -425,7 +353,7 @@ export class MessagingService implements IMessagingService {
         message: string;
         status: string;
         error?: string;
-        metadata?: any;
+        metadata?: unknown;
         sentAt: Date | null;
     }): Promise<void> {
         try {
@@ -439,7 +367,7 @@ export class MessagingService implements IMessagingService {
                     message: data.message,
                     status: data.status,
                     error: data.error,
-                    metadata: data.metadata,
+                    metadata: data.metadata ? JSON.stringify(data.metadata) : null,
                     sentAt: data.sentAt,
                 },
             });

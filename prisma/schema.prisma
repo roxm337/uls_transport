@@ -38,6 +38,11 @@ model Client {
   paymentTerms String?
   notes        String? @db.Text
 
+  /// Whether this client receives the automatic transport notifications sent
+  /// through the single ULS configuration. Off by default: a client is
+  /// written to only once someone has said so.
+  notificationsEnabled Boolean @default(false)
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -169,12 +174,19 @@ model ActionLog {
   @@index([userId], map: "ActionLog_userId_fkey")
 }
 
+/// The single messaging configuration of ULS Transport.
+///
+/// ULS is the sender, so there is one SMTP account and one WhatsApp number
+/// for the whole company. This used to be one row per client, each holding
+/// its own credentials — a shape inherited from a multi-tenant codebase that
+/// never matched the business: a client is who you write *to*, not a mail
+/// server you send *through*.
+///
+/// Whether a given client is written to at all is `Client.notificationsEnabled`.
 model MessagingConfig {
   id               String       @id @default(cuid())
-  type             String?      @default("client")
-  config           String?      @db.LongText
-  clientId         String?      @unique
-  clientMessagingEnabled Boolean @default(false)
+  /// Singleton guard: exactly one row can exist, always keyed "uls".
+  key              String       @unique @default("uls")
   smtpEnabled      Boolean      @default(false)
   smtpHost         String?
   smtpPort         Int?
@@ -192,7 +204,7 @@ model MessagingConfig {
   whatsappTemplate String?      @db.Text
   smtpAutoSend     Boolean      @default(false)
   smtpTimeout      Int          @default(0)
-  // Staff notification fields (added safely — all nullable/defaulted)
+  /// Operational ping to the ULS team on every shipment event.
   staffNotifyEnabled  Boolean   @default(false)
   staffNotifyPhone    String?
   staffNotifyGroupId  String?
@@ -200,8 +212,6 @@ model MessagingConfig {
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   messageLogs      MessageLog[]
-
-  @@index([clientId])
 }
 
 model MessageTemplate {

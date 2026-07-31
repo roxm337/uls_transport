@@ -144,10 +144,8 @@ export const translations = {
                 testError: 'Failed to send test message.'
             },
             config: {
-                title: 'Messaging Configurations',
-                subtitle: 'Manage SMTP and WhatsApp settings per scope.',
-                clientMessagingEnabled: 'Client messaging access',
-                clientMessagingEnabledHint: 'Allow this client to access the messaging pages.',
+                title: 'Messaging Configuration',
+                subtitle: "ULS Transport's own e-mail and WhatsApp account.",
                 add: 'Add Configuration',
                 scope: 'Scope',
                 client: 'Client',
@@ -344,10 +342,8 @@ export const translations = {
                 testError: 'Échec de l\'envois du message de test.'
             },
             config: {
-                title: 'Configurations de Messagerie',
-                subtitle: 'Gérez les paramètres SMTP et WhatsApp par portée.',
-                clientMessagingEnabled: 'Accès messagerie client',
-                clientMessagingEnabledHint: 'Autoriser ce client à accéder aux pages de messagerie.',
+                title: 'Configuration de la messagerie',
+                subtitle: "Le compte e-mail et WhatsApp d'ULS Transport.",
                 add: 'Ajouter une Configuration',
                 scope: 'Portée',
                 client: 'Client',

@@ -41,6 +41,7 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
     const [form, setForm] = React.useState(EMPTY);
     const [services, setServices] = React.useState<string[]>([]);
     const [staff, setStaff] = React.useState<StaffOption[]>([]);
+    const [notificationsEnabled, setNotificationsEnabled] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
 
     React.useEffect(() => {
@@ -72,9 +73,12 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
                 accountManagerId: client.accountManagerId ?? NO_MANAGER,
             });
             setServices(parseServices(client.services));
+            setNotificationsEnabled(Boolean(client.notificationsEnabled));
         } else {
             setForm(EMPTY);
             setServices([]);
+            // Off for a new client: nobody is written to until someone says so.
+            setNotificationsEnabled(false);
         }
     }, [open, client]);
 
@@ -96,6 +100,7 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
             const payload = {
                 ...form,
                 services,
+                notificationsEnabled,
                 // The sentinel is a UI concern; the column stores null.
                 accountManagerId:
                     form.accountManagerId === NO_MANAGER ? null : form.accountManagerId,
@@ -255,6 +260,34 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
                             })}
                         </div>
                     </div>
+
+                    {/* The only per-client messaging setting there is: the
+                        credentials themselves belong to ULS and live in
+                        Messagerie → Configuration. */}
+                    <label
+                        htmlFor="notificationsEnabled"
+                        className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                            notificationsEnabled
+                                ? 'border-sky-300 bg-sky-50'
+                                : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                        }`}
+                    >
+                        <Checkbox
+                            id="notificationsEnabled"
+                            checked={notificationsEnabled}
+                            onCheckedChange={v => setNotificationsEnabled(Boolean(v))}
+                            className="mt-0.5"
+                        />
+                        <span className="text-sm">
+                            <span className="font-medium text-ink-950">
+                                Notifications automatiques
+                            </span>
+                            <span className="mt-0.5 block text-xs text-slate-500">
+                                Prévenir ce client par e-mail / WhatsApp à chaque étape de ses
+                                expéditions, avec le compte d&apos;envoi d&apos;ULS Transport.
+                            </span>
+                        </span>
+                    </label>
 
                     <div className="grid gap-2">
                         <Label htmlFor="notes">Notes</Label>
