@@ -37,12 +37,6 @@ export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
 
-    useEffect(() => {
-        if (userRole === 'MANAGER') {
-            fetchPermissions();
-        }
-    }, [userId, userRole]);
-
     const fetchPermissions = async () => {
         setIsLoading(true);
         try {
@@ -60,6 +54,13 @@ export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps
             setIsLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (userRole === 'MANAGER') {
+            fetchPermissions();
+        }
+    }, [userId, userRole]);
+
 
     const handleToggleSection = (sectionPath: string) => {
         setAllowedSections(prev => {

@@ -42,12 +42,6 @@ export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePi
     const [loading, setLoading] = useState(false);
     const [hoveredTemplate, setHoveredTemplate] = useState<MessageTemplate | null>(null);
 
-    useEffect(() => {
-        if (open) {
-            loadTemplates();
-        }
-    }, [open, type, scopeId]);
-
     const loadTemplates = async () => {
         try {
             setLoading(true);
@@ -65,6 +59,13 @@ export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePi
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (open) {
+            loadTemplates();
+        }
+    }, [open, type, scopeId]);
+
 
     const handleSelect = (template: MessageTemplate) => {
         onSelect(template);

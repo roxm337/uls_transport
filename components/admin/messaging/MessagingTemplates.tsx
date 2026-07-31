@@ -63,11 +63,6 @@ export function MessagingTemplates() {
 
     const [filterClientId, setFilterClientId] = useState<string>('all');
 
-    useEffect(() => {
-        loadTemplates();
-        loadClients();
-    }, [activeTab, filterClientId]);
-
     const loadClients = async () => {
         try {
             const res = await fetch('/api/admin/users/clients');
@@ -94,6 +89,13 @@ export function MessagingTemplates() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        loadTemplates();
+        loadClients();
+    }, [activeTab, filterClientId]);
+
+
 
     const resetForm = () => {
         setFormName('');

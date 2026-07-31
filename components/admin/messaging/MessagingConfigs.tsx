@@ -104,6 +104,23 @@ interface MessagingConfigForm {
     testRecipient?: string | null;
 }
 
+
+/** Loading placeholder. Defined at module scope: a component
+ * created during render is a new type on every pass, so React
+ * unmounts and remounts it instead of updating it. */
+function ConfigSkeleton() {
+    return (
+    <div className="space-y-4 animate-pulse">
+        <div className="h-6 w-32 bg-slate-200 rounded"></div>
+        <div className="space-y-3">
+            <div className="h-10 w-full bg-slate-200 rounded"></div>
+            <div className="h-10 w-full bg-slate-200 rounded"></div>
+            <div className="h-10 w-full bg-slate-200 rounded"></div>
+        </div>
+    </div>
+    );
+}
+
 export function MessagingConfigs() {
     const { t } = useLanguage();
     const role = useAdminRole();
@@ -140,10 +157,6 @@ export function MessagingConfigs() {
         }
     };
 
-    useEffect(() => {
-        void fetchConfig();
-    }, []);
-
     const fetchConfig = async () => {
         setIsLoadingConfig(true);
         try {
@@ -164,6 +177,11 @@ export function MessagingConfigs() {
             setIsLoadingData(false);
         }
     };
+
+    useEffect(() => {
+        void fetchConfig();
+    }, []);
+
 
     const handleDelete = async () => {
         setIsSaving(true);
@@ -245,16 +263,6 @@ export function MessagingConfigs() {
     };
 
     // Skeleton loader for config cards
-    const ConfigSkeleton = () => (
-        <div className="space-y-4 animate-pulse">
-            <div className="h-6 w-32 bg-slate-200 rounded"></div>
-            <div className="space-y-3">
-                <div className="h-10 w-full bg-slate-200 rounded"></div>
-                <div className="h-10 w-full bg-slate-200 rounded"></div>
-                <div className="h-10 w-full bg-slate-200 rounded"></div>
-            </div>
-        </div>
-    );
 
     if (isLoadingData) {
         return (

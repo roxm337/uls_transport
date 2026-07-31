@@ -125,6 +125,20 @@ const WHATSAPP_FORMATS = [
     { icon: Code, format: '```', label: 'Code', shortcut: 'Ctrl+`' },
 ];
 
+
+/** Loading placeholder. Defined at module scope: a component
+ * created during render is a new type on every pass, so React
+ * unmounts and remounts it instead of updating it. */
+function SkeletonLoader() {
+    return (
+    <div className="animate-pulse space-y-4">
+        <div className="h-10 bg-slate-200 rounded-lg w-full"></div>
+        <div className="h-10 bg-slate-200 rounded-lg w-3/4"></div>
+        <div className="h-32 bg-slate-200 rounded-lg w-full"></div>
+    </div>
+    );
+}
+
 export function MessagingCompose() {
     const { t } = useLanguage();
     const searchParams = useSearchParams();
@@ -472,13 +486,6 @@ export function MessagingCompose() {
     }, [message]);
 
     // Skeleton loader component
-    const SkeletonLoader = () => (
-        <div className="animate-pulse space-y-4">
-            <div className="h-10 bg-slate-200 rounded-lg w-full"></div>
-            <div className="h-10 bg-slate-200 rounded-lg w-3/4"></div>
-            <div className="h-32 bg-slate-200 rounded-lg w-full"></div>
-        </div>
-    );
 
     if (isLoadingData) {
         return (

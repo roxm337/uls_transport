@@ -75,6 +75,23 @@ interface MessageLogRow {
     template?: { name: string; category?: string | null } | null;
 }
 
+
+/** Loading placeholder. Defined at module scope: a component
+ * created during render is a new type on every pass, so React
+ * unmounts and remounts it instead of updating it. */
+function SkeletonRow() {
+    return (
+    <TableRow className="animate-pulse">
+        <TableCell><div className="h-4 w-20 bg-slate-200 rounded"></div></TableCell>
+        <TableCell><div className="h-4 w-32 bg-slate-200 rounded"></div></TableCell>
+        <TableCell><div className="h-4 w-40 bg-slate-200 rounded"></div></TableCell>
+        <TableCell><div className="h-5 w-16 bg-slate-200 rounded-full"></div></TableCell>
+        <TableCell><div className="h-4 w-24 bg-slate-200 rounded"></div></TableCell>
+        <TableCell className="text-right"><div className="h-8 w-8 bg-slate-200 rounded ml-auto"></div></TableCell>
+    </TableRow>
+    );
+}
+
 export function MessagingLogs() {
     const { t } = useLanguage();
     const [logs, setLogs] = useState<MessageLogRow[]>([]);
@@ -85,10 +102,6 @@ export function MessagingLogs() {
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
-
-    useEffect(() => {
-        fetchLogs();
-    }, [channelFilter, statusFilter]);
 
     const fetchLogs = async () => {
         setIsLoading(true);
@@ -108,6 +121,11 @@ export function MessagingLogs() {
             setIsLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchLogs();
+    }, [channelFilter, statusFilter]);
+
 
     // Filter logs by search query
     const filteredLogs = logs.filter(log => {
@@ -161,16 +179,6 @@ export function MessagingLogs() {
     };
 
     // Skeleton loader
-    const SkeletonRow = () => (
-        <TableRow className="animate-pulse">
-            <TableCell><div className="h-4 w-20 bg-slate-200 rounded"></div></TableCell>
-            <TableCell><div className="h-4 w-32 bg-slate-200 rounded"></div></TableCell>
-            <TableCell><div className="h-4 w-40 bg-slate-200 rounded"></div></TableCell>
-            <TableCell><div className="h-5 w-16 bg-slate-200 rounded-full"></div></TableCell>
-            <TableCell><div className="h-4 w-24 bg-slate-200 rounded"></div></TableCell>
-            <TableCell className="text-right"><div className="h-8 w-8 bg-slate-200 rounded ml-auto"></div></TableCell>
-        </TableRow>
-    );
 
     return (
         <TooltipProvider>
