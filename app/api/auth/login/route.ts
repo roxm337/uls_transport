@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyPassword, signToken } from '@/lib/auth';
-import { logAction } from '@/lib/actions';
 import { rateLimit, resetRateLimit } from '@/lib/rate-limit';
 import { logSecurityEvent, SecurityEvent, SecuritySeverity } from '@/lib/security-logger';
 
@@ -128,8 +127,11 @@ export async function POST(req: Request) {
             req
         });
 
-        // Legacy Logging (keep for backward compatibility)
-        await logAction('User Login', { email: user.email });
+        // The legacy `logAction('User Login')` that used to sit here wrote a
+        // second row for the same event — and an author-less one, because
+        // logAction reads the session cookie off the *request*, which on a
+        // login does not carry the token yet. The security event above
+        // records the same thing with the user attached.
 
         // Reset rate limit on successful login
         resetRateLimit(identifier);

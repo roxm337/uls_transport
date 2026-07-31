@@ -14,7 +14,13 @@ import {
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { CLIENT_STATUSES, SERVICE_OPTIONS, parseServices } from '@/lib/crm';
-import { createClient, updateClient, type Client } from '@/lib/services/clients';
+import {
+    createClient, updateClient, fetchStaffOptions,
+    type Client, type StaffOption,
+} from '@/lib/services/clients';
+
+/** Sentinel for "no account manager": Radix Select rejects an empty value. */
+const NO_MANAGER = 'none';
 
 interface Props {
     open: boolean;
@@ -27,14 +33,24 @@ interface Props {
 const EMPTY = {
     companyName: '', siret: '', vatNumber: '', contactName: '', email: '', phone: '',
     addressLine: '', postalCode: '', city: '', country: 'France',
-    status: 'Prospect', paymentTerms: '', notes: '',
+    status: 'Prospect', paymentTerms: '', notes: '', accountManagerId: NO_MANAGER,
 };
 
 export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
     const isEdit = Boolean(client);
     const [form, setForm] = React.useState(EMPTY);
     const [services, setServices] = React.useState<string[]>([]);
+    const [staff, setStaff] = React.useState<StaffOption[]>([]);
     const [saving, setSaving] = React.useState(false);
+
+    React.useEffect(() => {
+        if (!open) return;
+        fetchStaffOptions().then(setStaff).catch(() => {
+            // A picker that can't load is a missing field, not a failed save:
+            // the rest of the form stays usable.
+            toast.error("Impossible de charger l'équipe.");
+        });
+    }, [open]);
 
     React.useEffect(() => {
         if (!open) return;
@@ -53,6 +69,7 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
                 status: client.status ?? 'Prospect',
                 paymentTerms: client.paymentTerms ?? '',
                 notes: client.notes ?? '',
+                accountManagerId: client.accountManagerId ?? NO_MANAGER,
             });
             setServices(parseServices(client.services));
         } else {
@@ -76,7 +93,13 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
 
         setSaving(true);
         try {
-            const payload = { ...form, services };
+            const payload = {
+                ...form,
+                services,
+                // The sentinel is a UI concern; the column stores null.
+                accountManagerId:
+                    form.accountManagerId === NO_MANAGER ? null : form.accountManagerId,
+            };
             if (isEdit && client) {
                 await updateClient(client.id, payload);
                 toast.success('Client mis à jour.');
@@ -184,6 +207,24 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
                             <Input id="paymentTerms" value={form.paymentTerms}
                                 onChange={e => set('paymentTerms')(e.target.value)}
                                 placeholder="30 jours fin de mois" />
+                        </div>
+
+                        <div className="grid gap-2 sm:col-span-2">
+                            <Label htmlFor="accountManagerId">Chargé de compte</Label>
+                            <Select
+                                value={form.accountManagerId}
+                                onValueChange={set('accountManagerId')}
+                            >
+                                <SelectTrigger id="accountManagerId">
+                                    <SelectValue placeholder="Non attribué" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={NO_MANAGER}>Non attribué</SelectItem>
+                                    {staff.map(s => (
+                                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
 

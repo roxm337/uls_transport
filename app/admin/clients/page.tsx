@@ -16,23 +16,37 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { ClientDialog } from '@/components/admin/ClientDialog';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { RowActions } from '@/components/admin/RowActions';
+import { useAdminRole } from '@/components/admin/AdminLayoutClient';
 import {
     CLIENT_STATUSES, CLIENT_STATUS_STYLES, SERVICE_OPTIONS,
     parseServices, serviceShortLabel,
 } from '@/lib/crm';
 import { Pagination } from '@/components/admin/Pagination';
-import { fetchClients, type Client, type ClientTotals } from '@/lib/services/clients';
+import {
+    fetchClients, fetchStaffOptions, deleteClient,
+    type Client, type ClientTotals, type StaffOption,
+} from '@/lib/services/clients';
 
 const PAGE_SIZE = 25;
 
 export default function ClientsPage() {
+    const role = useAdminRole();
+    const isAdmin = role?.toUpperCase?.() === 'ADMIN';
+
     const [clients, setClients] = React.useState<Client[]>([]);
     const [loading, setLoading] = React.useState(true);
     const [search, setSearch] = React.useState('');
     const [debounced, setDebounced] = React.useState('');
     const [status, setStatus] = React.useState('All');
     const [service, setService] = React.useState('All');
+    const [accountManagerId, setAccountManagerId] = React.useState('All');
+    const [staff, setStaff] = React.useState<StaffOption[]>([]);
     const [dialogOpen, setDialogOpen] = React.useState(false);
+    // Editing from the row reuses the same dialog: `null` means "create".
+    const [editing, setEditing] = React.useState<Client | null>(null);
+    const [toDelete, setToDelete] = React.useState<Client | null>(null);
     const [page, setPage] = React.useState(1);
     const [paging, setPaging] = React.useState({ pageCount: 1, total: 0, pageSize: PAGE_SIZE });
     // Totals now come from the API: derived from the loaded rows they only ever
@@ -47,11 +61,19 @@ export default function ClientsPage() {
         return () => clearTimeout(t);
     }, [search]);
 
+    React.useEffect(() => {
+        fetchStaffOptions().then(setStaff).catch(() => {
+            // Losing the picker costs one filter, not the page.
+            setStaff([]);
+        });
+    }, []);
+
     const load = React.useCallback(async () => {
         setLoading(true);
         try {
             const result = await fetchClients({
-                search: debounced, status, service, page, pageSize: PAGE_SIZE,
+                search: debounced, status, service, accountManagerId,
+                page, pageSize: PAGE_SIZE,
             });
             setClients(result.items);
             setTotals(result.totals);
@@ -64,9 +86,23 @@ export default function ClientsPage() {
         } finally {
             setLoading(false);
         }
-    }, [debounced, status, service, page]);
+    }, [debounced, status, service, accountManagerId, page]);
 
     React.useEffect(() => { void load(); }, [load]);
+
+    async function handleDelete(client: Client) {
+        try {
+            const { expeditionsRemoved } = await deleteClient(client.id);
+            toast.success(
+                expeditionsRemoved > 0
+                    ? `${client.companyName} et ses ${expeditionsRemoved} expédition(s) supprimés.`
+                    : `${client.companyName} supprimé.`
+            );
+            void load();
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Suppression impossible.');
+        }
+    }
 
     return (
         <motion.div
@@ -150,6 +186,23 @@ export default function ClientsPage() {
                             </SelectContent>
                         </Select>
 
+                        <Select
+                            value={accountManagerId}
+                            onValueChange={v => { setAccountManagerId(v); setPage(1); }}
+                        >
+                            <SelectTrigger className="w-full sm:w-[190px] bg-white">
+                                <SelectValue placeholder="Chargé de compte" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="All">Tous les chargés</SelectItem>
+                                {/* The clients nobody owns are the ones worth finding. */}
+                                <SelectItem value="None">Non attribués</SelectItem>
+                                {staff.map(s => (
+                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
                         <Button variant="outline" className="bg-white shrink-0"
                             onClick={() => void load()} disabled={loading}>
                             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -166,18 +219,19 @@ export default function ClientsPage() {
                                     <TableHead>Services</TableHead>
                                     <TableHead className="text-center">Expéditions</TableHead>
                                     <TableHead>Statut</TableHead>
+                                    <TableHead className="w-10" />
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {loading ? (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="h-24 text-center text-sm text-slate-500">
+                                        <TableCell colSpan={7} className="h-24 text-center text-sm text-slate-500">
                                             Chargement…
                                         </TableCell>
                                     </TableRow>
                                 ) : clients.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="h-24 text-center text-sm text-slate-500">
+                                        <TableCell colSpan={7} className="h-24 text-center text-sm text-slate-500">
                                             Aucun client ne correspond à ces critères.
                                         </TableCell>
                                     </TableRow>
@@ -236,6 +290,14 @@ export default function ClientsPage() {
                                                     {client.status}
                                                 </Badge>
                                             </TableCell>
+                                            <TableCell className="text-right">
+                                                <RowActions
+                                                    href={`/admin/clients/${client.id}`}
+                                                    label={client.companyName}
+                                                    onEdit={() => { setEditing(client); setDialogOpen(true); }}
+                                                    onDelete={isAdmin ? () => setToDelete(client) : undefined}
+                                                />
+                                            </TableCell>
                                         </TableRow>
                                     );
                                 })}
@@ -258,8 +320,38 @@ export default function ClientsPage() {
 
             <ClientDialog
                 open={dialogOpen}
-                onOpenChange={setDialogOpen}
+                onOpenChange={open => {
+                    setDialogOpen(open);
+                    // Drop the edit target on close, so the next "Nouveau
+                    // client" opens an empty form rather than the last edit.
+                    if (!open) setEditing(null);
+                }}
+                client={editing}
                 onSaved={() => void load()}
+            />
+
+            <ConfirmDialog
+                open={toDelete !== null}
+                onOpenChange={open => { if (!open) setToDelete(null); }}
+                title={`Supprimer ${toDelete?.companyName} ?`}
+                description={
+                    <>
+                        {(toDelete?._count?.expeditions ?? 0) > 0 ? (
+                            <>
+                                Ses <strong>{toDelete?._count?.expeditions} expédition(s)</strong> et
+                                ses contacts seront supprimés avec lui.
+                            </>
+                        ) : (
+                            <>Ce client n&apos;a aucune expédition enregistrée.</>
+                        )}
+                        {' '}Cette action est irréversible.
+                    </>
+                }
+                confirmLabel="Supprimer le client"
+                onConfirm={async () => {
+                    if (toDelete) await handleDelete(toDelete);
+                    setToDelete(null);
+                }}
             />
         </motion.div>
     );

@@ -11,9 +11,15 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
+import {
+    MANUAL_TEMPLATE_CATEGORIES,
+    EXPEDITION_TEMPLATE_CATEGORIES,
+    templateCategoryLabel,
+} from '@/lib/crm';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 
 interface MessageTemplate {
     id: string;
@@ -49,6 +55,7 @@ export function MessagingTemplates() {
     const [formStatus, setFormStatus] = useState('active');
     const [formIsDefault, setFormIsDefault] = useState(false);
     const [formSaving, setFormSaving] = useState(false);
+    const [templateToDelete, setTemplateToDelete] = useState<MessageTemplate | null>(null);
     const [clients, setClients] = useState<any[]>([]);
 
     const [filterClientId, setFilterClientId] = useState<string>('all');
@@ -173,9 +180,7 @@ export function MessagingTemplates() {
         }
     };
 
-    const handleDelete = async (id: string, name: string) => {
-        if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
-
+    const handleDelete = async (id: string) => {
         try {
             const res = await fetch(`/api/admin/templates/${id}`, {
                 method: 'DELETE'
@@ -183,10 +188,10 @@ export function MessagingTemplates() {
 
             if (!res.ok) throw new Error('Failed to delete template');
 
-            toast.success('Template deleted');
+            toast.success('Modèle supprimé.');
             loadTemplates();
-        } catch (error) {
-            toast.error('Failed to delete template');
+        } catch {
+            toast.error('Suppression impossible.');
         }
     };
 
@@ -287,7 +292,14 @@ export function MessagingTemplates() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Badge variant="outline">{template.category || 'N/A'}</Badge>
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={template.category?.startsWith('expedition:')
+                                                            ? 'border-sky-200 bg-sky-50 text-sky-700'
+                                                            : ''}
+                                                    >
+                                                        {templateCategoryLabel(template.category)}
+                                                    </Badge>
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge variant="secondary">{template.scope}</Badge>
@@ -315,7 +327,7 @@ export function MessagingTemplates() {
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
-                                                            onClick={() => handleDelete(template.id, template.name)}
+                                                            onClick={() => setTemplateToDelete(template)}
                                                         >
                                                             <Trash2 className="h-4 w-4" />
                                                         </Button>
@@ -372,9 +384,14 @@ export function MessagingTemplates() {
                                 placeholder={`Hello {{name}},\n\nThank you for your interest!`}
                                 rows={8}
                             />
-                            <p className="text-xs text-muted-foreground mt-1">
-                                Available variables: {'{{name}}'}, {'{{email}}'}, {'{{phone}}'}, {'{{company}}'}, {'{{date}}'}, {'{{time}}'}
-                            </p>
+                            <div className="mt-2 space-y-1">
+                                <p className="text-xs text-muted-foreground">
+                                    Client : {'{{name}}'}, {'{{company}}'}, {'{{email}}'}, {'{{phone}}'}, {'{{city}}'}, {'{{date}}'}, {'{{time}}'}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                    Expédition : {'{{reference}}'}, {'{{statut}}'}, {'{{service}}'}, {'{{trajet}}'}, {'{{enlevement_ville}}'}, {'{{enlevement_date}}'}, {'{{livraison_ville}}'}, {'{{livraison_date}}'}, {'{{marchandise}}'}, {'{{colis}}'}, {'{{poids}}'}, {'{{prix}}'}
+                                </p>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -385,12 +402,25 @@ export function MessagingTemplates() {
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="welcome">Welcome</SelectItem>
-                                        <SelectItem value="follow-up">Follow-up</SelectItem>
-                                        <SelectItem value="reminder">Reminder</SelectItem>
-                                        <SelectItem value="notification">Notification</SelectItem>
+                                        {MANUAL_TEMPLATE_CATEGORIES.map(c => (
+                                            <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                                        ))}
+                                        {/* Picking one of these binds the template to a moment in
+                                            a shipment's life: it is then sent automatically when
+                                            that moment arrives, for every client whose
+                                            configuration allows it. */}
+                                        <SelectSeparator />
+                                        {EXPEDITION_TEMPLATE_CATEGORIES.map(c => (
+                                            <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
+                                {formCategory.startsWith('expedition:') && (
+                                    <p className="mt-1 text-xs text-sky-700">
+                                        Envoyé automatiquement à ce moment du transport, si l&apos;envoi
+                                        automatique est activé pour le client.
+                                    </p>
+                                )}
                             </div>
 
                             <div>
@@ -455,6 +485,25 @@ export function MessagingTemplates() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={templateToDelete !== null}
+                onOpenChange={open => { if (!open) setTemplateToDelete(null); }}
+                title="Supprimer ce modèle ?"
+                description={
+                    <>
+                        <strong>{templateToDelete?.name}</strong> sera supprimé.
+                        {templateToDelete?.category?.startsWith('expedition:') && (
+                            <> Les notifications automatiques qui l&apos;utilisent cesseront d&apos;être envoyées.</>
+                        )}
+                    </>
+                }
+                confirmLabel="Supprimer"
+                onConfirm={async () => {
+                    if (templateToDelete) await handleDelete(templateToDelete.id);
+                    setTemplateToDelete(null);
+                }}
+            />
         </div>
     );
 }

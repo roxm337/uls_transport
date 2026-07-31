@@ -6,7 +6,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSection } from '@/lib/server/staff-auth';
 import { prisma } from '@/lib/db';
-import { TemplateRenderer, STANDARD_VARIABLES } from '@/lib/services/messaging/template-renderer';
+import {
+    TemplateRenderer,
+    STANDARD_VARIABLES,
+    EXPEDITION_VARIABLES,
+} from '@/lib/services/messaging/template-renderer';
 
 
 /**
@@ -22,27 +26,24 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const clientId = searchParams.get('clientId');
 
-        // Start with standard variables
-        const variables = { ...STANDARD_VARIABLES };
-        let sampleData: Record<string, string> | undefined;
+        // Client and system fields, plus the shipment fields a transport
+        // notification needs to be worth sending.
+        const variables = { ...STANDARD_VARIABLES, ...EXPEDITION_VARIABLES };
 
         // If clientId provided, preview against that client's real data
-        if (clientId) {
-            const client = await prisma.client.findUnique({
-                where: { id: clientId }
-            });
+        const client = clientId
+            ? await prisma.client.findUnique({ where: { id: clientId } })
+            : null;
 
-            if (client) {
-                sampleData = TemplateRenderer.getAvailableVariables(client);
-            }
-        } else {
-            // Return sample data
-            sampleData = TemplateRenderer.getSampleData();
-        }
+        const sampleData = TemplateRenderer.getAvailableVariables(client);
 
         return NextResponse.json({
             available: Object.keys(variables),
             descriptions: variables,
+            groups: {
+                client: Object.keys(STANDARD_VARIABLES),
+                expedition: Object.keys(EXPEDITION_VARIABLES),
+            },
             sampleData
         });
     } catch (error: any) {

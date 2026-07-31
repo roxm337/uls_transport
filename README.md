@@ -40,9 +40,15 @@ Tout est dans `.env.local` (ignoré par git) :
 - `JWT_SECRET` — signature des jetons de session, 32 caractères minimum **(requis)**
 - `ENCRYPTION_KEY` — clé AES-256-GCM, exactement 64 caractères hexadécimaux **(requis)**
 - `SECURE_COOKIES` — `false` pour autoriser les cookies non-HTTPS en production
-- `ALLOWED_ORIGINS`, `PRODUCTION_URL` — origines acceptées par la protection CSRF
+- `ALLOWED_ORIGINS`, `PRODUCTION_URL` — origines acceptées par la protection
+  CSRF, appliquée par le middleware à **toute** écriture `/api/*` (POST,
+  PATCH, PUT, DELETE). Les deux sont cumulatives ; `PRODUCTION_URL` est
+  toujours acceptée. À défaut, seule l'origine correspondant à l'en-tête
+  `Host` de la requête passe — insuffisant derrière un proxy qui le réécrit,
+  d'où **`PRODUCTION_URL` à renseigner en production**.
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD` — compte administrateur créé par le seed
-- `WHATSAPP_DEFAULT_COUNTRY_CODE` — indicatif par défaut (`33`)
+- `WHATSAPP_DEFAULT_COUNTRY_CODE` — indicatif par défaut (`33`), appliqué aux
+  numéros saisis au format local (`06…` → `+336…`)
 
 ## Domaine
 
@@ -58,3 +64,34 @@ Les libellés métier (statuts, services, couleurs) sont centralisés dans
 
 Cycle de vie d'une expédition :
 `Demandée → Planifiée → Enlevée → En transit → Livrée` (ou `Annulée`).
+
+Chaque changement de statut est écrit dans `ExpeditionEvent` — l'historique
+sert aussi de source pour la date de livraison réelle en analytique, que
+`updatedAt` ne peut pas fournir (toute édition la déplace).
+
+## Notifications automatiques
+
+Créer une expédition ou changer son statut déclenche une notification, si —
+et seulement si — le client concerné est configuré pour :
+
+1. **Messagerie → Configuration**, pour ce client : activer la messagerie
+   client, puis l'envoi automatique e-mail et/ou WhatsApp. La notification
+   à l'exploitation (numéro ou groupe WhatsApp) se règle au même endroit.
+2. **Messagerie → Modèles** : créer un modèle dont la catégorie est
+   « Expédition — … ». La catégorie détermine le moment de l'envoi
+   (`expedition:created`, `expedition:Livree`, …).
+
+Résolution du modèle, du plus précis au plus général : modèle du client pour
+cet événement → modèle global pour cet événement → modèle par défaut du
+client → modèle par défaut global. Sans modèle, rien n'est envoyé.
+
+Variables disponibles dans les modèles :
+
+- Client — `{{company}}`, `{{name}}`, `{{email}}`, `{{phone}}`, `{{city}}`
+- Expédition — `{{reference}}`, `{{statut}}`, `{{service}}`, `{{trajet}}`,
+  `{{enlevement_ville}}`, `{{enlevement_date}}`, `{{livraison_ville}}`,
+  `{{livraison_date}}`, `{{marchandise}}`, `{{colis}}`, `{{poids}}`, `{{prix}}`
+- Système — `{{date}}`, `{{time}}`
+
+Un échec d'envoi n'échoue jamais l'enregistrement de l'expédition : le
+résultat est tracé dans `MessageLog` (Messagerie → Journaux).

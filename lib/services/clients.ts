@@ -23,6 +23,8 @@ export interface Client {
     status: string;
     services: string | null;
     accountManagerId: string | null;
+    /** Resolved from accountManagerId by the API; not a stored column. */
+    accountManager?: { id: string; name: string } | null;
     paymentTerms: string | null;
     notes: string | null;
     createdAt: string;
@@ -104,6 +106,7 @@ export async function fetchClients(params: {
     search?: string;
     status?: string;
     service?: string;
+    accountManagerId?: string;
     page?: number;
     pageSize?: number;
 } = {}): Promise<Page<Client, ClientTotals>> {
@@ -111,6 +114,9 @@ export async function fetchClients(params: {
     if (params.search) qs.set('search', params.search);
     if (params.status && params.status !== 'All') qs.set('status', params.status);
     if (params.service && params.service !== 'All') qs.set('service', params.service);
+    if (params.accountManagerId && params.accountManagerId !== 'All') {
+        qs.set('accountManagerId', params.accountManagerId);
+    }
     if (params.page) qs.set('page', String(params.page));
     if (params.pageSize) qs.set('pageSize', String(params.pageSize));
 
@@ -138,6 +144,20 @@ export async function fetchClients(params: {
 export interface ClientOption {
     id: string;
     companyName: string;
+}
+
+/** A staff account offered as the owner of a client relationship. */
+export interface StaffOption {
+    id: string;
+    name: string;
+    role: string;
+}
+
+/** Active ADMIN and MANAGER accounts, for the account-manager picker. */
+export async function fetchStaffOptions(): Promise<StaffOption[]> {
+    const res = await fetch('/api/admin/staff/options', { cache: 'no-store' });
+    const data = await json<{ staff: StaffOption[] }>(res);
+    return data.staff;
 }
 
 /**
@@ -242,22 +262,40 @@ export async function fetchExpedition(id: string): Promise<Expedition> {
     return data.expedition;
 }
 
-export async function createExpedition(payload: Partial<Expedition>) {
+/**
+ * What the automatic notification did for a write, so the UI can say so
+ * instead of leaving the operator guessing whether the client was told.
+ */
+export interface NotifyOutcome {
+    emailSent: boolean;
+    whatsappSent: boolean;
+    staffNotified: boolean;
+    skipped?: string;
+}
+
+/**
+ * `statusNote` is not a column on Expedition — it is the note attached to
+ * the timeline entry a status change creates, so it rides along with the
+ * write rather than being stored on the shipment.
+ */
+export type ExpeditionInput = Partial<Expedition> & { statusNote?: string };
+
+export async function createExpedition(payload: ExpeditionInput) {
     const res = await fetch('/api/admin/expeditions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
     });
-    return json<{ expedition: Expedition }>(res);
+    return json<{ expedition: Expedition; notified?: NotifyOutcome | null }>(res);
 }
 
-export async function updateExpedition(id: string, payload: Partial<Expedition>) {
+export async function updateExpedition(id: string, payload: ExpeditionInput) {
     const res = await fetch(`/api/admin/expeditions/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
     });
-    return json<{ expedition: Expedition }>(res);
+    return json<{ expedition: Expedition; notified?: NotifyOutcome | null }>(res);
 }
 
 export async function deleteExpedition(id: string) {

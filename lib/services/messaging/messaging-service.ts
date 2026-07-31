@@ -139,6 +139,60 @@ export class MessagingService implements IMessagingService {
     }
 
     /**
+     * Send a WhatsApp message to a group rather than a phone number.
+     *
+     * The provider has supported groups all along; the service did not
+     * expose it, so the "notifier un groupe" option in the configuration
+     * screen had no way to reach it.
+     */
+    async sendWhatsAppToGroup(
+        groupId: string,
+        text: string,
+        clientId: string
+    ): Promise<MessageResult> {
+        try {
+            const config = await this.getWhatsAppConfig(clientId);
+
+            if (!config) {
+                return {
+                    success: false,
+                    error: `No WhatsApp configuration found for client: ${clientId}`
+                };
+            }
+
+            const provider = getWhatsAppProvider(config.provider);
+            if (!provider?.sendToGroup) {
+                return {
+                    success: false,
+                    error: `Provider ${config.provider} does not support group messages`
+                };
+            }
+
+            const result = await provider.sendToGroup(groupId, text, config);
+
+            await this.logMessage({
+                configId: config.id,
+                channel: 'whatsapp',
+                recipient: groupId,
+                subject: null,
+                message: text,
+                status: result.success ? 'sent' : 'failed',
+                error: result.error,
+                metadata: result.details,
+                sentAt: result.success ? new Date() : null,
+            });
+
+            return result;
+        } catch (error: any) {
+            console.error('[MessagingService] sendWhatsAppToGroup error:', error);
+            return {
+                success: false,
+                error: error.message || 'Failed to send WhatsApp group message',
+            };
+        }
+    }
+
+    /**
      * Get default template for auto-send
      * @param type - 'email' or 'whatsapp'
      * @param clientId - Client ID
@@ -217,6 +271,11 @@ export class MessagingService implements IMessagingService {
         whatsappTimeout: number;
         smtpTimeout: number;
         whatsappTemplate?: string;
+        /** Exploitation ping settings, read by the notification trigger. */
+        staffNotifyEnabled: boolean;
+        staffNotifyMode: string;
+        staffNotifyPhone: string | null;
+        staffNotifyGroupId: string | null;
         isInherited: boolean; // Always false now
     }> {
         const config = await this.getConfig(clientId);
@@ -235,6 +294,12 @@ export class MessagingService implements IMessagingService {
                 whatsappTimeout: config.whatsappTimeout || 0,
                 smtpTimeout: config.smtpTimeout || 0,
                 whatsappTemplate: config.whatsappTemplate || '',
+                // Staff pings ride the same WhatsApp credentials, so they
+                // are only live once that channel is actually configured.
+                staffNotifyEnabled: whatsappSetup && !!config.staffNotifyEnabled,
+                staffNotifyMode: config.staffNotifyMode || 'phone',
+                staffNotifyPhone: config.staffNotifyPhone || null,
+                staffNotifyGroupId: config.staffNotifyGroupId || null,
                 isInherited: false
             };
         }
@@ -247,6 +312,10 @@ export class MessagingService implements IMessagingService {
             whatsappAutoSend: false,
             whatsappTimeout: 0,
             smtpTimeout: 0,
+            staffNotifyEnabled: false,
+            staffNotifyMode: 'phone',
+            staffNotifyPhone: null,
+            staffNotifyGroupId: null,
             isInherited: false,
         };
     }

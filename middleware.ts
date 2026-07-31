@@ -1,17 +1,32 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { validateOrigin, isMutating } from '@/lib/origin';
 
 /** Sections only an ADMIN may open; MANAGER is bounced back to the dashboard. */
 const ADMIN_ONLY = ['/admin/users', '/admin/logs', '/admin/settings'];
 
 export async function middleware(req: NextRequest) {
-    const token = req.cookies.get('auth-token')?.value;
     const { pathname } = req.nextUrl;
+
+    // ── CSRF ──────────────────────────────────────────────────────────
+    //
+    // Every state-changing API call passes through here. Enforcing it
+    // per-route left it out of 13 of the 16 mutating handlers, which is
+    // exactly the gap a single choke point closes for good. Routes keep
+    // their own validateCsrf() call as a second line of defence.
+    if (pathname.startsWith('/api/') && isMutating(req) && !validateOrigin(req)) {
+        return NextResponse.json(
+            { error: 'Invalid request origin. CSRF validation failed.' },
+            { status: 403 }
+        );
+    }
 
     if (!pathname.startsWith('/admin')) {
         return NextResponse.next();
     }
+
+    const token = req.cookies.get('auth-token')?.value;
 
     if (!token) {
         return NextResponse.redirect(new URL('/login', req.url));
@@ -35,5 +50,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-    matcher: ['/admin/:path*'],
+    matcher: ['/admin/:path*', '/api/:path*'],
 };

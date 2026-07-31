@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useLanguage } from '@/lib/i18n/context';
 import { ManagerPermissions } from '@/components/admin/ManagerPermissions';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 
 export default function UsersPage() {
     const { t } = useLanguage();
@@ -40,6 +41,7 @@ export default function UsersPage() {
     const [editLogo, setEditLogo] = useState<File | null>(null);
     const [editLogoPreview, setEditLogoPreview] = useState<string>('');
     const [updating, setUpdating] = useState(false);
+    const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
     useEffect(() => {
         loadUsers();
@@ -87,7 +89,7 @@ export default function UsersPage() {
             setNewLogoPreview('');
             loadUsers();
         } catch (error: unknown) {
-            alert(error instanceof Error ? error.message : 'Failed to create user');
+            toast.error(error instanceof Error ? error.message : 'Création impossible.');
         } finally {
             setCreating(false);
         }
@@ -101,9 +103,6 @@ export default function UsersPage() {
         setEditRole(user.role);
         setEditLogo(null);
         setEditLogoPreview(user.logo || '');
-        const sections = (!Array.isArray(user.allowedSections) && typeof user.allowedSections === 'object' && user.allowedSections)
-            ? user.allowedSections as Record<string, unknown>
-            : {};
         setIsEditOpen(true);
     }
 
@@ -136,64 +135,38 @@ export default function UsersPage() {
                 logo: logoUrl,
             });
             setIsEditOpen(false);
+            toast.success('Compte mis à jour.');
             loadUsers();
         } catch (error: unknown) {
-            alert(error instanceof Error ? error.message : 'Failed to update user');
+            toast.error(error instanceof Error ? error.message : 'Mise à jour impossible.');
         } finally {
             setUpdating(false);
         }
     }
 
-    async function handleDelete(id: string) {
-        if (!confirm(t.users.table.deleteConfirm)) return;
+    async function handleDelete(user: User) {
         try {
-            await deleteUser(id);
+            await deleteUser(user.id);
+            toast.success('Compte supprimé.');
             loadUsers();
-        } catch (error) {
-            console.error(error);
-            alert('Failed to delete user');
+        } catch (error: unknown) {
+            // The refusals worth reading — last administrator, own account —
+            // arrive in the message, so show it rather than a generic failure.
+            toast.error(error instanceof Error ? error.message : 'Suppression impossible.');
         }
     }
 
     async function handleStatusChange(id: string, newStatus: string) {
-        // Optimistic update could go here, but let's just wait for API
         try {
-            // We need to fetch the current user details largely to pass them back if required by updateUser signature
-            // But updateUser in services takes `data` which is Partial? No, it looks like it takes a specific object.
-            // Let's check `lib/services/users.ts`. updateUser(id, data).
-            // Actually I defined it as `updateUser(id, data: { name, email, role, password?, status? })`
-            // But I don't want to re-send everything. 
-            // My API endpoint `app/api/admin/users/[id]/route.ts` handles partial updates?
-            // "const { name, email, role, password, status } = data;"
-            // It selects specific fields. If they are undefined, it might set them to undefined.
-            // But `prisma.user.update` with `undefined` values usually ignores them or errors if not optional.
-            // Let's check the API again.
-            // `const updateData: any = { name, email, role, status };`
-            // If `name` is undefined in `body`, then `updateData.name` is undefined.
-            // Prisma ignores undefined fields in `data`.
-            // So I can just send `{ status: newStatus }` via a slightly modified service call or just fetch directly here.
-
-            // To be safe and clean, let's just make the fetch call directly here or update the service to accept Partial.
-            // For now, I will use `updateUser` but I need to pass other params?
-            // Wait, I updated `updateUser` signature to: `updateUser(id, data: { name: string; email: string; role: string; password?: string; status?: string })`
-            // It expects name, email, role as mandatory. That's annoying for a status toggle.
-            // I should find the user in the list to get their current details.
-
-            const user = users.find(u => u.id === id);
-            if (!user) return;
-
-            await updateUser(id, {
-                name: user.name || '',
-                email: user.email,
-                role: user.role,
-                status: newStatus
-            });
+            // Only the status is sent: the API applies what it receives and
+            // leaves the rest alone, so echoing back name/e-mail/role would
+            // risk overwriting a concurrent edit with stale list data.
+            await updateUser(id, { status: newStatus });
 
             loadUsers();
-            toast.success('User status updated');
+            toast.success('Statut du compte mis à jour.');
         } catch (error: unknown) {
-            console.error(error);
-            toast.error('Failed to update status');
+            toast.error(error instanceof Error ? error.message : 'Mise à jour impossible.');
         }
     }
 
@@ -276,7 +249,7 @@ export default function UsersPage() {
                                     </select>
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="logo">Client Logo (Optional)</Label>
+                                    <Label htmlFor="logo">Photo / avatar (facultatif)</Label>
                                     <div className="flex flex-col gap-2">
                                         <Input
                                             id="logo"
@@ -296,7 +269,7 @@ export default function UsersPage() {
                                         />
                                         {newLogoPreview && (
                                             <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
-                                                <img src={newLogoPreview} alt="Logo preview" className="w-full h-full object-contain" />
+                                                <img src={newLogoPreview} alt="Aperçu de l'avatar" className="w-full h-full object-contain" />
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -365,7 +338,7 @@ export default function UsersPage() {
                                 </div>
 
                                 <div className="grid gap-2">
-                                    <Label htmlFor="edit-logo">Client Logo (Optional)</Label>
+                                    <Label htmlFor="edit-logo">Photo / avatar (facultatif)</Label>
                                     <div className="flex flex-col gap-2">
                                         <Input
                                             id="edit-logo"
@@ -385,7 +358,7 @@ export default function UsersPage() {
                                         />
                                         {editLogoPreview && (
                                             <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
-                                                <img src={editLogoPreview} alt="Logo preview" className="w-full h-full object-contain" />
+                                                <img src={editLogoPreview} alt="Aperçu de l'avatar" className="w-full h-full object-contain" />
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -552,7 +525,8 @@ export default function UsersPage() {
                                                                 variant="ghost"
                                                                 size="sm"
                                                                 className="hover:bg-red-50 hover:text-red-600 text-muted-foreground transition-colors h-8 w-8 p-0 sm:h-9 sm:w-9"
-                                                                onClick={() => handleDelete(user.id)}
+                                                                onClick={() => setUserToDelete(user)}
+                                                                title="Supprimer le compte"
                                                             >
                                                                 <Trash className="h-4 w-4" />
                                                             </Button>
@@ -568,6 +542,24 @@ export default function UsersPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            <ConfirmDialog
+                open={userToDelete !== null}
+                onOpenChange={open => { if (!open) setUserToDelete(null); }}
+                title="Supprimer ce compte ?"
+                description={
+                    <>
+                        <strong>{userToDelete?.name || userToDelete?.email}</strong> perdra
+                        immédiatement l&apos;accès au CRM. Ses entrées du journal d&apos;audit
+                        sont conservées, sans auteur. Cette action est irréversible.
+                    </>
+                }
+                confirmLabel="Supprimer le compte"
+                onConfirm={async () => {
+                    if (userToDelete) await handleDelete(userToDelete);
+                    setUserToDelete(null);
+                }}
+            />
         </motion.div >
     );
 }

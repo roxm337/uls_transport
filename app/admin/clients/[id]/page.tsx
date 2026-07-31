@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import {
     ArrowLeft, Pencil, Trash, Plus, Mail, Phone, MapPin, FileText,
-    Building2, Truck, Star, Loader2,
+    Building2, Truck, Star, Loader2, UserRound,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,12 +22,14 @@ import {
     Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { ClientDialog } from '@/components/admin/ClientDialog';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import {
     CLIENT_STATUS_STYLES, EXPEDITION_STATUS_STYLES, expeditionStatusLabel,
     parseServices, serviceLabel, serviceShortLabel, formatEuros,
 } from '@/lib/crm';
 import {
-    fetchClient, deleteClient, createContact, deleteContact, type Client,
+    fetchClient, deleteClient, createContact, deleteContact,
+    type Client, type ClientContact,
 } from '@/lib/services/clients';
 import { useAdminRole } from '@/components/admin/AdminLayoutClient';
 
@@ -42,6 +44,8 @@ export default function ClientDetailPage() {
     const [editOpen, setEditOpen] = React.useState(false);
     const [contactOpen, setContactOpen] = React.useState(false);
     const [deleting, setDeleting] = React.useState(false);
+    const [confirmDelete, setConfirmDelete] = React.useState(false);
+    const [contactToDelete, setContactToDelete] = React.useState<ClientContact | null>(null);
 
     const load = React.useCallback(async () => {
         setLoading(true);
@@ -57,12 +61,6 @@ export default function ClientDetailPage() {
     React.useEffect(() => { void load(); }, [load]);
 
     async function handleDelete() {
-        const count = client?.expeditions?.length ?? 0;
-        const warning = count > 0
-            ? `Supprimer ${client?.companyName} ? Ses ${count} expédition(s) et contacts seront également supprimés. Cette action est irréversible.`
-            : `Supprimer ${client?.companyName} ? Cette action est irréversible.`;
-        if (!confirm(warning)) return;
-
         setDeleting(true);
         try {
             await deleteClient(id);
@@ -71,6 +69,16 @@ export default function ClientDetailPage() {
         } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Suppression impossible.');
             setDeleting(false);
+        }
+    }
+
+    async function handleDeleteContact(contact: ClientContact) {
+        try {
+            await deleteContact(contact.id);
+            toast.success('Contact supprimé.');
+            void load();
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Suppression impossible.');
         }
     }
 
@@ -96,6 +104,10 @@ export default function ClientDetailPage() {
     const services = parseServices(client.services);
     const expeditions = client.expeditions ?? [];
     const contacts = client.contacts ?? [];
+    // The API caps the embedded list at 50; the count is the real total, so
+    // a busy client's history is never presented as shorter than it is.
+    const totalExpeditions = client._count?.expeditions ?? expeditions.length;
+    const truncated = totalExpeditions > expeditions.length;
 
     return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -128,7 +140,7 @@ export default function ClientDetailPage() {
                         <Pencil className="h-4 w-4" /> Modifier
                     </Button>
                     {isAdmin && (
-                        <Button variant="outline" onClick={handleDelete} disabled={deleting}
+                        <Button variant="outline" onClick={() => setConfirmDelete(true)} disabled={deleting}
                             className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700">
                             {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash className="h-4 w-4" />}
                             Supprimer
@@ -155,6 +167,11 @@ export default function ClientDetailPage() {
                         />
                         <Row icon={FileText} label="Règlement" value={client.paymentTerms} />
                         {client.vatNumber && <Row icon={FileText} label="N° TVA" value={client.vatNumber} />}
+                        <Row
+                            icon={UserRound}
+                            label="Chargé de compte"
+                            value={client.accountManager?.name ?? null}
+                        />
                     </CardContent>
                 </Card>
 
@@ -213,16 +230,7 @@ export default function ClientDetailPage() {
                                             {c.role && <p className="text-xs text-slate-500">{c.role}</p>}
                                         </div>
                                         <button
-                                            onClick={async () => {
-                                                if (!confirm(`Supprimer le contact ${c.name} ?`)) return;
-                                                try {
-                                                    await deleteContact(c.id);
-                                                    toast.success('Contact supprimé.');
-                                                    void load();
-                                                } catch (error) {
-                                                    toast.error(error instanceof Error ? error.message : 'Échec.');
-                                                }
-                                            }}
+                                            onClick={() => setContactToDelete(c)}
                                             className="shrink-0 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
                                             aria-label={`Supprimer ${c.name}`}
                                         >
@@ -245,7 +253,7 @@ export default function ClientDetailPage() {
             {/* Expeditions */}
             <Card className="border-slate-200">
                 <CardHeader className="flex flex-row items-center justify-between pb-3">
-                    <CardTitle className="text-base">Expéditions ({expeditions.length})</CardTitle>
+                    <CardTitle className="text-base">Expéditions ({totalExpeditions})</CardTitle>
                     <Link href={`/admin/expeditions?clientId=${client.id}`}>
                         <Button size="sm" variant="outline">Voir tout</Button>
                     </Link>
@@ -292,11 +300,52 @@ export default function ClientDetailPage() {
                             </Table>
                         </div>
                     )}
+                    {truncated && (
+                        <p className="mt-3 text-xs text-slate-500">
+                            Les {expeditions.length} plus récentes sur {totalExpeditions}.{' '}
+                            <Link href={`/admin/expeditions?clientId=${client.id}`} className="underline">
+                                Voir toutes les expéditions
+                            </Link>
+                        </p>
+                    )}
                 </CardContent>
             </Card>
 
             <ClientDialog open={editOpen} onOpenChange={setEditOpen} client={client} onSaved={() => void load()} />
             <ContactDialog open={contactOpen} onOpenChange={setContactOpen} clientId={client.id} onSaved={() => void load()} />
+
+            <ConfirmDialog
+                open={confirmDelete}
+                onOpenChange={setConfirmDelete}
+                title={`Supprimer ${client.companyName} ?`}
+                description={
+                    <>
+                        {totalExpeditions > 0 ? (
+                            <>
+                                Ses <strong>{totalExpeditions} expédition(s)</strong> et ses{' '}
+                                <strong>{contacts.length} contact(s)</strong> seront supprimés avec lui.
+                            </>
+                        ) : (
+                            <>Ce client n&apos;a aucune expédition enregistrée.</>
+                        )}
+                        {' '}Cette action est irréversible.
+                    </>
+                }
+                confirmLabel="Supprimer le client"
+                onConfirm={handleDelete}
+            />
+
+            <ConfirmDialog
+                open={contactToDelete !== null}
+                onOpenChange={open => { if (!open) setContactToDelete(null); }}
+                title="Supprimer ce contact ?"
+                description={<>{contactToDelete?.name} sera retiré de la fiche de {client.companyName}.</>}
+                confirmLabel="Supprimer"
+                onConfirm={async () => {
+                    if (contactToDelete) await handleDeleteContact(contactToDelete);
+                    setContactToDelete(null);
+                }}
+            />
         </motion.div>
     );
 }

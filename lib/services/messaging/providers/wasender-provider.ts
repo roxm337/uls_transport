@@ -8,22 +8,27 @@ import { IWhatsAppProvider, WhatsAppMessage, WhatsAppConfig, MessageResult } fro
 const REQUEST_TIMEOUT = 10000; // 10 seconds
 
 // Default country code for local phone number conversion
-// Can be overridden via WHATSAPP_DEFAULT_COUNTRY_CODE env variable
-const DEFAULT_COUNTRY_CODE = process.env.WHATSAPP_DEFAULT_COUNTRY_CODE || '212'; // Morocco
+// Can be overridden via WHATSAPP_DEFAULT_COUNTRY_CODE env variable.
+// 33 = France: ULS Transport operates from Ris-Orangis, and a local number
+// typed as 06… must normalise to +336…, not to another country's prefix.
+const DEFAULT_COUNTRY_CODE = process.env.WHATSAPP_DEFAULT_COUNTRY_CODE || '33';
 
 /**
- * Default WhatsApp message template
- * Use {{name}} placeholder for dynamic name insertion
+ * Last-resort message body, used only when a caller passes neither a
+ * template nor `isFullMessage`.
+ *
+ * It used to be a marketing script for an unrelated agency, complete with
+ * their booking link — anything falling through to it was sending a client
+ * of ULS Transport someone else's sales pitch. It now says the minimum a
+ * transporter can honestly say, and callers that mean something specific
+ * pass their own text.
  */
-const DEFAULT_MESSAGE_TEMPLATE = `Bonjour {{name}} 
+const DEFAULT_MESSAGE_TEMPLATE = `Bonjour {{name}},
 
-Bravo pour le teste de simulation.
+Une mise à jour concerne votre transport. Notre exploitation revient vers vous.
 
-Un expert ODDYSEE va vous recontacter dès que possible, tout fois N’hésitez pas à répondre à choisir un créneaux de disponible en cliquant ici : 
-https://calendly.com/odysee-agence/30min/
-
-Excellente journée.
-équipe Oddysee`;
+Bien cordialement,
+ULS Transport`;
 
 /**
  * Phone number validation result

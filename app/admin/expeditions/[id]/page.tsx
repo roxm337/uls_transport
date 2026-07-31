@@ -12,17 +12,23 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+    Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { ExpeditionDialog } from '@/components/admin/ExpeditionDialog';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import {
     EXPEDITION_STATUSES, EXPEDITION_STATUS_STYLES, expeditionStatusLabel,
     serviceLabel, formatEuros,
 } from '@/lib/crm';
 import {
     fetchExpedition, updateExpedition, deleteExpedition,
-    type Expedition, type ExpeditionEvent,
+    type Expedition, type ExpeditionEvent, type NotifyOutcome,
 } from '@/lib/services/clients';
 import { useAdminRole } from '@/components/admin/AdminLayoutClient';
 
@@ -36,6 +42,11 @@ export default function ExpeditionDetailPage() {
     const [loading, setLoading] = React.useState(true);
     const [editOpen, setEditOpen] = React.useState(false);
     const [updatingStatus, setUpdatingStatus] = React.useState(false);
+    const [confirmDelete, setConfirmDelete] = React.useState(false);
+    // A status the operator has picked but not yet committed, held here so a
+    // note can be attached to the transition before it is written.
+    const [pendingStatus, setPendingStatus] = React.useState<string | null>(null);
+    const [statusNote, setStatusNote] = React.useState('');
 
     const load = React.useCallback(async () => {
         setLoading(true);
@@ -50,12 +61,17 @@ export default function ExpeditionDetailPage() {
 
     React.useEffect(() => { void load(); }, [load]);
 
-    async function changeStatus(status: string) {
+    async function changeStatus(status: string, note?: string) {
         setUpdatingStatus(true);
         try {
-            const { expedition: updated } = await updateExpedition(id, { status });
+            const { expedition: updated, notified } = await updateExpedition(id, {
+                status,
+                statusNote: note?.trim() || undefined,
+            });
             setExpedition(prev => prev ? { ...prev, status: updated.status } : prev);
-            toast.success(`Statut : ${expeditionStatusLabel(status)}`);
+            toast.success(`Statut : ${expeditionStatusLabel(status)}`, {
+                description: describeNotification(notified),
+            });
             // Reload so the transition shows up in the timeline.
             void load();
         } catch (error) {
@@ -66,7 +82,6 @@ export default function ExpeditionDetailPage() {
     }
 
     async function handleDelete() {
-        if (!confirm(`Supprimer l'expédition ${expedition?.reference} ? Cette action est irréversible.`)) return;
         try {
             await deleteExpedition(id);
             toast.success('Expédition supprimée.');
@@ -123,7 +138,19 @@ export default function ExpeditionDetailPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2 shrink-0">
-                    <Select value={expedition.status} onValueChange={changeStatus} disabled={updatingStatus}>
+                    <Select
+                        value={expedition.status}
+                        onValueChange={value => {
+                            // Opens the note prompt rather than committing
+                            // straight away: a transition is the moment an
+                            // operator has something to say about it.
+                            if (value !== expedition.status) {
+                                setStatusNote('');
+                                setPendingStatus(value);
+                            }
+                        }}
+                        disabled={updatingStatus}
+                    >
                         <SelectTrigger className="w-[170px] bg-white">
                             <SelectValue />
                         </SelectTrigger>
@@ -137,7 +164,7 @@ export default function ExpeditionDetailPage() {
                         <Pencil className="h-4 w-4" /> Modifier
                     </Button>
                     {isAdmin && (
-                        <Button variant="outline" onClick={handleDelete}
+                        <Button variant="outline" onClick={() => setConfirmDelete(true)}
                             className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700">
                             <Trash className="h-4 w-4" /> Supprimer
                         </Button>
@@ -254,8 +281,82 @@ export default function ExpeditionDetailPage() {
                 expedition={expedition}
                 onSaved={() => void load()}
             />
+
+            <ConfirmDialog
+                open={confirmDelete}
+                onOpenChange={setConfirmDelete}
+                title={`Supprimer l'expédition ${expedition.reference} ?`}
+                description="Son historique de statuts sera supprimé avec elle. Cette action est irréversible."
+                confirmLabel="Supprimer l'expédition"
+                onConfirm={handleDelete}
+            />
+
+            <Dialog
+                open={pendingStatus !== null}
+                onOpenChange={open => { if (!open) setPendingStatus(null); }}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>
+                            Passer en « {pendingStatus ? expeditionStatusLabel(pendingStatus) : ''} »
+                        </DialogTitle>
+                        <DialogDescription>
+                            Depuis « {expeditionStatusLabel(expedition.status)} ». Une note est
+                            facultative ; elle rejoint l&apos;historique de l&apos;expédition.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-2">
+                        <Label htmlFor="status-note">Note (facultatif)</Label>
+                        <Textarea
+                            id="status-note"
+                            rows={3}
+                            value={statusNote}
+                            onChange={e => setStatusNote(e.target.value)}
+                            placeholder="Retard au chargement, quai indisponible…"
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setPendingStatus(null)}
+                            disabled={updatingStatus}
+                        >
+                            Annuler
+                        </Button>
+                        <Button
+                            className="bg-brand-500 text-ink-950 hover:bg-brand-400"
+                            disabled={updatingStatus}
+                            onClick={async () => {
+                                if (!pendingStatus) return;
+                                await changeStatus(pendingStatus, statusNote);
+                                setPendingStatus(null);
+                            }}
+                        >
+                            {updatingStatus && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Confirmer
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </motion.div>
     );
+}
+
+/**
+ * What the automatic notification did, for the toast that follows a status
+ * change. Returns undefined when nothing was configured — silence is the
+ * normal case and does not deserve a line of its own.
+ */
+function describeNotification(notified: NotifyOutcome | null | undefined): string | undefined {
+    if (!notified) return undefined;
+
+    const sent = [
+        notified.emailSent && 'e-mail',
+        notified.whatsappSent && 'WhatsApp',
+        notified.staffNotified && 'exploitation',
+    ].filter(Boolean) as string[];
+
+    return sent.length > 0 ? `Notification envoyée : ${sent.join(', ')}.` : undefined;
 }
 
 function Timeline({ events }: { events: ExpeditionEvent[] }) {

@@ -52,6 +52,48 @@ export const EXPEDITION_COMPLETED: string[] = ['Livree'];
 /** Statuses that mean the job is still running. */
 export const EXPEDITION_ACTIVE: string[] = ['Demandee', 'Planifiee', 'Enlevee', 'En transit'];
 
+// ── Message template categories ───────────────────────────────────────
+
+/**
+ * A template whose category is one of the `expedition:*` values below is
+ * sent automatically when the matching thing happens to a shipment — see
+ * `lib/server/expedition-notifications.ts`. Everything else is a manual
+ * template, only ever sent from the compose screen.
+ */
+export const EXPEDITION_TEMPLATE_CATEGORIES: { value: string; label: string }[] = [
+    { value: 'expedition:created', label: 'Expédition — créée' },
+    ...EXPEDITION_STATUSES.map(s => ({
+        value: `expedition:${s.value}`,
+        label: `Expédition — ${s.label}`,
+    })),
+];
+
+/** Free-form categories, used to group templates in the picker. */
+export const MANUAL_TEMPLATE_CATEGORIES: { value: string; label: string }[] = [
+    { value: 'welcome', label: 'Bienvenue' },
+    { value: 'follow-up', label: 'Relance' },
+    { value: 'reminder', label: 'Rappel' },
+    { value: 'notification', label: 'Notification' },
+];
+
+export const TEMPLATE_CATEGORIES: { value: string; label: string }[] = [
+    ...MANUAL_TEMPLATE_CATEGORIES,
+    ...EXPEDITION_TEMPLATE_CATEGORIES,
+];
+
+export function templateCategoryLabel(value: string | null | undefined): string {
+    if (!value) return 'Autre';
+    return TEMPLATE_CATEGORIES.find(c => c.value === value)?.label ?? value;
+}
+
+/**
+ * The template category that governs a shipment event: its creation, or the
+ * status it has just moved to.
+ */
+export function expeditionTemplateCategory(event: 'created' | string): string {
+    return `expedition:${event}`;
+}
+
 // ── ULS services ──────────────────────────────────────────────────────
 
 export const SERVICE_OPTIONS: { value: string; label: string }[] =

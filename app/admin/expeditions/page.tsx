@@ -17,13 +17,17 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { ExpeditionDialog } from '@/components/admin/ExpeditionDialog';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { RowActions } from '@/components/admin/RowActions';
+import { useAdminRole } from '@/components/admin/AdminLayoutClient';
 import { Pagination } from '@/components/admin/Pagination';
 import {
     EXPEDITION_STATUSES, EXPEDITION_STATUS_STYLES,
     expeditionStatusLabel, SERVICE_OPTIONS, serviceShortLabel, formatEuros,
 } from '@/lib/crm';
 import {
-    fetchExpeditions, type Expedition, type ExpeditionTotals,
+    fetchExpeditions, deleteExpedition,
+    type Expedition, type ExpeditionTotals,
 } from '@/lib/services/clients';
 
 const PAGE_SIZE = 25;
@@ -31,6 +35,8 @@ const PAGE_SIZE = 25;
 function ExpeditionsContent() {
     const searchParams = useSearchParams();
     const clientId = searchParams.get('clientId') ?? undefined;
+    const role = useAdminRole();
+    const isAdmin = role?.toUpperCase?.() === 'ADMIN';
 
     const [expeditions, setExpeditions] = React.useState<Expedition[]>([]);
     const [loading, setLoading] = React.useState(true);
@@ -39,6 +45,9 @@ function ExpeditionsContent() {
     const [status, setStatus] = React.useState('All');
     const [service, setService] = React.useState('All');
     const [dialogOpen, setDialogOpen] = React.useState(false);
+    // Editing from the row reuses the same dialog: `null` means "create".
+    const [editing, setEditing] = React.useState<Expedition | null>(null);
+    const [toDelete, setToDelete] = React.useState<Expedition | null>(null);
     const [page, setPage] = React.useState(1);
     const [paging, setPaging] = React.useState({ pageCount: 1, total: 0, pageSize: PAGE_SIZE });
     // Totals now come from the API: derived from the loaded rows they only ever
@@ -73,6 +82,16 @@ function ExpeditionsContent() {
     }, [debounced, status, service, clientId, page]);
 
     React.useEffect(() => { void load(); }, [load]);
+
+    async function handleDelete(expedition: Expedition) {
+        try {
+            await deleteExpedition(expedition.id);
+            toast.success(`Expédition ${expedition.reference} supprimée.`);
+            void load();
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Suppression impossible.');
+        }
+    }
 
     const clientName = clientId ? expeditions[0]?.client?.companyName : null;
 
@@ -168,18 +187,19 @@ function ExpeditionsContent() {
                                     <TableHead>Enlèvement</TableHead>
                                     <TableHead>Statut</TableHead>
                                     <TableHead className="text-right">Prix HT</TableHead>
+                                    <TableHead className="w-10" />
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {loading ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="h-24 text-center text-sm text-slate-500">
+                                        <TableCell colSpan={8} className="h-24 text-center text-sm text-slate-500">
                                             Chargement…
                                         </TableCell>
                                     </TableRow>
                                 ) : expeditions.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="h-24 text-center text-sm text-slate-500">
+                                        <TableCell colSpan={8} className="h-24 text-center text-sm text-slate-500">
                                             Aucune expédition ne correspond à ces critères.
                                         </TableCell>
                                     </TableRow>
@@ -216,6 +236,14 @@ function ExpeditionsContent() {
                                         <TableCell className="text-right text-sm font-medium">
                                             {formatEuros(e.priceHt)}
                                         </TableCell>
+                                        <TableCell className="text-right">
+                                            <RowActions
+                                                href={`/admin/expeditions/${e.id}`}
+                                                label={e.reference}
+                                                onEdit={() => { setEditing(e); setDialogOpen(true); }}
+                                                onDelete={isAdmin ? () => setToDelete(e) : undefined}
+                                            />
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -237,9 +265,27 @@ function ExpeditionsContent() {
 
             <ExpeditionDialog
                 open={dialogOpen}
-                onOpenChange={setDialogOpen}
+                onOpenChange={open => {
+                    setDialogOpen(open);
+                    // Drop the edit target on close, so "Nouvelle expédition"
+                    // opens an empty form rather than the last edit.
+                    if (!open) setEditing(null);
+                }}
+                expedition={editing}
                 defaultClientId={clientId}
                 onSaved={() => void load()}
+            />
+
+            <ConfirmDialog
+                open={toDelete !== null}
+                onOpenChange={open => { if (!open) setToDelete(null); }}
+                title={`Supprimer l'expédition ${toDelete?.reference} ?`}
+                description="Son historique de statuts sera supprimé avec elle. Cette action est irréversible."
+                confirmLabel="Supprimer l'expédition"
+                onConfirm={async () => {
+                    if (toDelete) await handleDelete(toDelete);
+                    setToDelete(null);
+                }}
             />
         </motion.div>
     );

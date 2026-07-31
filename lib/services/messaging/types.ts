@@ -62,6 +62,11 @@ export interface IWhatsAppProvider {
     send(message: WhatsAppMessage, config: WhatsAppConfig): Promise<MessageResult>;
     validateConfig(config: WhatsAppConfig): Promise<boolean>;
     getName(): string;
+    /**
+     * Optional: address a group rather than a phone number. Providers that
+     * cannot do this simply omit it, and callers check before using it.
+     */
+    sendToGroup?(groupId: string, message: string, config: WhatsAppConfig): Promise<MessageResult>;
 }
 
 export interface IMessagingService {

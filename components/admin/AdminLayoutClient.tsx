@@ -8,14 +8,23 @@ import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { sectionForPath, SECTION_LABELS } from '@/lib/sections';
 
+/** Who is signed in, as shown by the header account menu. */
+export interface AdminAccount {
+    name: string;
+    email: string;
+    logo: string | null;
+}
+
 interface AdminContextType {
     role: string;
     allowedSections: string[] | null;
+    account: AdminAccount | null;
 }
 
 const AdminContext = createContext<AdminContextType>({
     role: 'MANAGER',
-    allowedSections: null
+    allowedSections: null,
+    account: null,
 });
 
 export function useAdminRole() {
@@ -30,10 +39,12 @@ export function AdminLayoutClient({
     children,
     role,
     allowedSections,
+    account = null,
 }: {
     children: React.ReactNode;
     role: string;
     allowedSections: string[] | null;
+    account?: AdminAccount | null;
 }) {
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
@@ -65,7 +76,7 @@ export function AdminLayoutClient({
     }
 
     return (
-        <AdminContext.Provider value={{ role, allowedSections }}>
+        <AdminContext.Provider value={{ role, allowedSections, account }}>
             <div className="flex min-h-screen bg-[#f8fafc] dark:bg-gray-900 font-sans">
                 <AdminSidebar
                     role={role}
@@ -76,7 +87,11 @@ export function AdminLayoutClient({
 
                 {/* Main Content */}
                 <div className="flex-1 md:ml-64 transition-all duration-300 ease-in-out">
-                    <AdminHeader onMobileMenuClick={() => setIsMobileSidebarOpen(true)} />
+                    <AdminHeader
+                        onMobileMenuClick={() => setIsMobileSidebarOpen(true)}
+                        account={account}
+                        role={role}
+                    />
 
                     <main className="p-4 md:p-8 max-w-[1920px] mx-auto w-full">
                         {denied ? <SectionDenied section={section} /> : children}

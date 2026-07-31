@@ -16,6 +16,34 @@ function parsePaging(searchParams: URLSearchParams) {
     return { page, pageSize, skip: (page - 1) * pageSize };
 }
 
+/**
+ * Attach `accountManager: { id, name }` to each row.
+ *
+ * `Client.accountManagerId` is a plain column rather than a foreign key, so
+ * Prisma cannot join it. Resolving it here in one extra query is what turns
+ * a stored id into something a screen can show — and an id whose account has
+ * since been deleted resolves to null rather than to a dangling reference.
+ */
+async function withAccountManagers<T extends { accountManagerId: string | null }>(
+    clients: T[]
+): Promise<(T & { accountManager: { id: string; name: string } | null })[]> {
+    const ids = [...new Set(clients.map(c => c.accountManagerId).filter(Boolean))] as string[];
+
+    const managers = ids.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, name: true, email: true },
+        })
+        : [];
+
+    const byId = new Map(managers.map(m => [m.id, { id: m.id, name: m.name || m.email }]));
+
+    return clients.map(c => ({
+        ...c,
+        accountManager: c.accountManagerId ? byId.get(c.accountManagerId) ?? null : null,
+    }));
+}
+
 /** Keep only known service slugs, stored as a JSON array. */
 function serialiseServices(input: unknown): string | null {
     if (!Array.isArray(input)) return null;
@@ -32,6 +60,7 @@ export async function GET(req: Request) {
         const search = searchParams.get('search')?.trim();
         const status = searchParams.get('status');
         const service = searchParams.get('service');
+        const accountManagerId = searchParams.get('accountManagerId');
         const { page, pageSize, skip } = parsePaging(searchParams);
 
         const and: any[] = [];
@@ -52,6 +81,10 @@ export async function GET(req: Request) {
         // services is a JSON string column; a substring match on the slug is
         // enough to filter and avoids a JSON function that MySQL 5.7 may lack.
         if (service && service !== 'All') and.push({ services: { contains: service } });
+        // `None` is a filter in its own right: unassigned clients are the
+        // ones most worth finding.
+        if (accountManagerId === 'None') and.push({ accountManagerId: null });
+        else if (accountManagerId && accountManagerId !== 'All') and.push({ accountManagerId });
 
         const where = and.length > 0 ? { AND: and } : {};
 
@@ -73,7 +106,7 @@ export async function GET(req: Request) {
         ]);
 
         return NextResponse.json({
-            clients,
+            clients: await withAccountManagers(clients),
             page,
             pageSize,
             total,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { History, Trash2, ChevronLeft, ChevronRight, Loader2, Search, Filter, XCircle, UserCheck, Shield, Users } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,12 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useLanguage } from '@/lib/i18n/context';
+import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
+import { toast } from "sonner";
 
 interface ActionLog {
     id: string;
     action: string;
-    details: any;
+    details: string | null;
     ipAddress: string | null;
     userAgent: string | null;
     createdAt: string;
@@ -24,137 +25,140 @@ interface ActionLog {
     } | null;
 }
 
+interface RoleCounts {
+    ADMIN: number;
+    MANAGER: number;
+    SYSTEM: number;
+}
+
+const PAGE_SIZE = 50;
+
 export default function LogsPage() {
-    const { t } = useLanguage();
     const [logs, setLogs] = useState<ActionLog[]>([]);
+    const [actions, setActions] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [clearing, setClearing] = useState(false);
+    const [confirmClear, setConfirmClear] = useState(false);
+
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [roleFilter, setRoleFilter] = useState('all');
     const [actionFilter, setActionFilter] = useState('all');
-    const [pagination, setPagination] = useState({
-        total: 0,
-        pages: 0,
-        currentPage: 1,
-        limit: 50
-    });
+    const [page, setPage] = useState(1);
+    const [pagination, setPagination] = useState({ total: 0, pages: 1 });
 
+    // Reset to the first page alongside the debounced term, in one update:
+    // sequencing them fires a request for the new term against the old page.
     useEffect(() => {
-        fetchLogs(pagination.currentPage);
+        const timer = setTimeout(() => { setDebouncedSearch(searchQuery); setPage(1); }, 400);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
-        // Setup polling every 30 seconds for real-time updates (slower polling when many logs)
-        const interval = setInterval(() => fetchLogs(pagination.currentPage, true), 10000);
-
-        return () => clearInterval(interval);
-    }, [pagination.currentPage]);
-
-    async function fetchLogs(page = 1, silent = false) {
+    const fetchLogs = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
         try {
-            const limit = pagination.limit;
-            const offset = (page - 1) * limit;
-            const res = await fetch(`/api/admin/logs?limit=${limit}&offset=${offset}`);
+            const qs = new URLSearchParams({
+                limit: String(PAGE_SIZE),
+                offset: String((page - 1) * PAGE_SIZE),
+            });
+            if (debouncedSearch) qs.set('search', debouncedSearch);
+            if (roleFilter !== 'all') qs.set('role', roleFilter);
+            if (actionFilter !== 'all') qs.set('action', actionFilter);
+
+            const res = await fetch(`/api/admin/logs?${qs.toString()}`, { cache: 'no-store' });
+            if (!res.ok) throw new Error('Chargement impossible.');
+
             const data = await res.json();
-            if (data.logs) {
-                setLogs(data.logs);
-                if (data.pagination) {
-                    setPagination(prev => ({
-                        ...prev,
-                        total: data.pagination.total,
-                        pages: data.pagination.pages,
-                        currentPage: data.pagination.currentPage
-                    }));
-                }
+            setLogs(data.logs ?? []);
+            setActions(data.actions ?? []);
+            if (data.pagination) {
+                setPagination({ total: data.pagination.total, pages: data.pagination.pages });
             }
         } catch (error) {
-            console.error('Failed to fetch logs:', error);
+            // A failed background refresh stays quiet: the visible table is
+            // still valid, and a toast every 30s would be noise.
+            if (!silent) {
+                toast.error(error instanceof Error ? error.message : 'Chargement impossible.');
+            }
         } finally {
             if (!silent) setLoading(false);
         }
-    }
+    }, [page, debouncedSearch, roleFilter, actionFilter]);
+
+    useEffect(() => { void fetchLogs(); }, [fetchLogs]);
+
+    useEffect(() => {
+        // Silent refresh, so the "Live" badge tells the truth.
+        const interval = setInterval(() => void fetchLogs(true), 30000);
+        return () => clearInterval(interval);
+    }, [fetchLogs]);
 
     async function handleClearLogs() {
-        if (!confirm('Are you sure you want to clear all audit logs? This action cannot be undone.')) return;
-
         setClearing(true);
         try {
             const res = await fetch('/api/admin/logs', { method: 'DELETE' });
-            if (res.ok) {
-                setLogs([]);
-                setPagination(prev => ({ ...prev, total: 0, pages: 0, currentPage: 1 }));
-            }
+            if (!res.ok) throw new Error('Purge impossible.');
+            const data = await res.json();
+            toast.success(`${data.deleted ?? 0} entrée(s) supprimée(s).`);
+            setLogs([]);
+            setPage(1);
+            setPagination({ total: 0, pages: 1 });
         } catch (error) {
-            console.error('Failed to clear logs:', error);
+            toast.error(error instanceof Error ? error.message : 'Purge impossible.');
         } finally {
             setClearing(false);
         }
     }
 
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('en-CA') + ' ' + new Date(dateString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-    };
+    const formatDate = (dateString: string) =>
+        new Date(dateString).toLocaleString('fr-FR', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        });
 
-    const renderDetails = (details: any) => {
-        if (!details) return '-';
-        if (typeof details === 'object') {
+    /**
+     * `details` is a JSON string column. Pretty-print it when it parses, and
+     * fall back to the raw text when it does not — an unparseable value is
+     * still worth reading.
+     */
+    const renderDetails = (details: string | null) => {
+        if (!details) return '—';
+        try {
             return (
                 <pre className="text-xs bg-slate-100 p-1 rounded w-full whitespace-pre-wrap break-words">
-                    {JSON.stringify(details, null, 2)}
+                    {JSON.stringify(JSON.parse(details), null, 2)}
                 </pre>
             );
+        } catch {
+            return <span className="break-words">{details}</span>;
         }
-        return String(details);
     };
 
     const simplifyUA = (ua: string | null) => {
-        if (!ua) return '-';
+        if (!ua) return '—';
         if (ua.includes('iPhone')) return 'iPhone';
         if (ua.includes('Android')) return 'Android';
         if (ua.includes('Macintosh')) return 'Mac';
         if (ua.includes('Windows')) return 'Windows';
         if (ua.includes('Linux')) return 'Linux';
-        return ua.split(' ')[0] || 'Unknown';
+        return ua.split(' ')[0] || 'Inconnu';
     };
 
-    const filteredLogs = useMemo(() => {
-        const query = searchQuery.trim().toLowerCase();
-        return logs.filter(log => {
-            if (roleFilter !== 'all' && (log.user?.role || 'SYSTEM') !== roleFilter) return false;
-            if (actionFilter !== 'all' && log.action !== actionFilter) return false;
-            if (!query) return true;
-            return (
-                log.action.toLowerCase().includes(query) ||
-                (log.user?.name || '').toLowerCase().includes(query) ||
-                (log.user?.email || '').toLowerCase().includes(query) ||
-                (log.ipAddress || '').toLowerCase().includes(query) ||
-                (log.userAgent || '').toLowerCase().includes(query)
-            );
-        });
-    }, [logs, searchQuery, roleFilter, actionFilter]);
+    // Counts describe the page on screen, and say so — the totals for the
+    // whole trail belong to the filters, which the API applies.
+    const stats: RoleCounts = useMemo(() => ({
+        ADMIN: logs.filter(l => l.user?.role === 'ADMIN').length,
+        MANAGER: logs.filter(l => l.user?.role === 'MANAGER').length,
+        SYSTEM: logs.filter(l => !l.user).length,
+    }), [logs]);
 
-    const stats = useMemo(() => {
-        const byRole = {
-            ADMIN: logs.filter(l => l.user?.role === 'ADMIN').length,
-            MANAGER: logs.filter(l => l.user?.role === 'MANAGER').length,
-            CLIENT: logs.filter(l => l.user?.role === 'CLIENT').length,
-            SYSTEM: logs.filter(l => !l.user).length,
-        };
-        return {
-            total: logs.length,
-            ...byRole,
-        };
-    }, [logs]);
-
-    const uniqueActions = useMemo(() => {
-        const set = new Set<string>();
-        logs.forEach(l => set.add(l.action));
-        return Array.from(set).sort();
-    }, [logs]);
+    const hasFilters = Boolean(searchQuery) || roleFilter !== 'all' || actionFilter !== 'all';
 
     const clearFilters = () => {
         setSearchQuery('');
         setRoleFilter('all');
         setActionFilter('all');
+        setPage(1);
     };
 
     return (
@@ -167,10 +171,10 @@ export default function LogsPage() {
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                    { label: 'Total', value: stats.total, icon: History, color: 'slate' },
-                    { label: 'Admins', value: stats.ADMIN, icon: Shield, color: 'brand' },
-                    { label: 'Managers', value: stats.MANAGER, icon: UserCheck, color: 'blue' },
-                    { label: 'System', value: stats.SYSTEM, icon: Users, color: 'amber' },
+                    { label: 'Entrées (total)', value: pagination.total, icon: History, color: 'slate' },
+                    { label: 'Admins (page)', value: stats.ADMIN, icon: Shield, color: 'brand' },
+                    { label: 'Managers (page)', value: stats.MANAGER, icon: UserCheck, color: 'blue' },
+                    { label: 'Système (page)', value: stats.SYSTEM, icon: Users, color: 'amber' },
                 ].map((stat) => (
                     <Card key={stat.label} className="border-none shadow-sm">
                         <CardContent className="p-4">
@@ -191,7 +195,7 @@ export default function LogsPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <h1 className="text-2xl font-bold tracking-tight">Admin Audit Logs</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">Journal d&apos;audit</h1>
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 text-[10px] font-bold uppercase tracking-wider">
                         <span className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -204,15 +208,14 @@ export default function LogsPage() {
                     variant="outline"
                     size="sm"
                     className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 transition-colors"
-                    onClick={handleClearLogs}
-                    disabled={clearing || logs.length === 0}
+                    onClick={() => setConfirmClear(true)}
+                    disabled={clearing || pagination.total === 0}
                 >
                     {clearing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                    Clear All Logs
+                    Purger le journal
                 </Button>
             </div>
 
-            {/* Admin Audit Logs */}
             <Card className="border-none shadow-sm bg-white/60 backdrop-blur-md">
                 <CardHeader>
                     <div className="flex items-center gap-2">
@@ -220,9 +223,9 @@ export default function LogsPage() {
                             <History className="h-5 w-5 text-ink-900" />
                         </div>
                         <div>
-                            <CardTitle>{t.analytics?.logs?.title || 'Audit Logs'}</CardTitle>
+                            <CardTitle>Historique des actions</CardTitle>
                             <CardDescription>
-                                {t.analytics?.logs?.subtitle || 'History of actions performed by admin users.'}
+                                Qui a fait quoi, depuis quelle adresse et quand.
                             </CardDescription>
                         </div>
                     </div>
@@ -230,7 +233,7 @@ export default function LogsPage() {
                         <div className="relative flex-1 min-w-[220px]">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <Input
-                                placeholder="Search by user, action, IP..."
+                                placeholder="Utilisateur, action, IP, détails…"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="pl-9 h-9"
@@ -240,6 +243,7 @@ export default function LogsPage() {
                                     type="button"
                                     onClick={() => setSearchQuery('')}
                                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                    aria-label="Effacer la recherche"
                                 >
                                     <XCircle className="h-4 w-4" />
                                 </button>
@@ -247,37 +251,36 @@ export default function LogsPage() {
                         </div>
                         <div className="flex items-center gap-2">
                             <Filter className="h-4 w-4 text-slate-500" />
-                            <Select value={roleFilter} onValueChange={setRoleFilter}>
-                                <SelectTrigger className="w-[140px] h-9">
-                                    <SelectValue placeholder="Role" />
+                            <Select value={roleFilter} onValueChange={v => { setRoleFilter(v); setPage(1); }}>
+                                <SelectTrigger className="w-[150px] h-9">
+                                    <SelectValue placeholder="Rôle" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Roles</SelectItem>
+                                    <SelectItem value="all">Tous les rôles</SelectItem>
                                     <SelectItem value="ADMIN">Admin</SelectItem>
                                     <SelectItem value="MANAGER">Manager</SelectItem>
-                                    <SelectItem value="CLIENT">Client</SelectItem>
-                                    <SelectItem value="SYSTEM">System</SelectItem>
+                                    <SelectItem value="SYSTEM">Système</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <Select value={actionFilter} onValueChange={setActionFilter}>
-                                <SelectTrigger className="w-[180px] h-9">
+                            <Select value={actionFilter} onValueChange={v => { setActionFilter(v); setPage(1); }}>
+                                <SelectTrigger className="w-[190px] h-9">
                                     <SelectValue placeholder="Action" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Actions</SelectItem>
-                                    {uniqueActions.map(action => (
+                                    <SelectItem value="all">Toutes les actions</SelectItem>
+                                    {actions.map(action => (
                                         <SelectItem key={action} value={action}>{action}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         </div>
-                        {(searchQuery || roleFilter !== 'all' || actionFilter !== 'all') && (
+                        {hasFilters && (
                             <Button variant="ghost" size="sm" onClick={clearFilters}>
-                                Clear filters
+                                Réinitialiser
                             </Button>
                         )}
                         <div className="ml-auto text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-                            {filteredLogs.length} result{filteredLogs.length === 1 ? '' : 's'}
+                            {pagination.total} résultat{pagination.total === 1 ? '' : 's'}
                         </div>
                     </div>
                 </CardHeader>
@@ -286,13 +289,13 @@ export default function LogsPage() {
                         <Table>
                             <TableHeader className="bg-slate-50">
                                 <TableRow>
-                                    <TableHead>{t.analytics?.logs?.table?.user || 'User'}</TableHead>
-                                    <TableHead>{t.analytics?.logs?.table?.role || 'Role'}</TableHead>
-                                    <TableHead>{t.analytics?.logs?.table?.action || 'Action'}</TableHead>
-                                    <TableHead>IP Address</TableHead>
-                                    <TableHead>Device</TableHead>
-                                    <TableHead>{t.analytics?.logs?.table?.details || 'Details'}</TableHead>
-                                    <TableHead className="text-right">{t.analytics?.logs?.table?.date || 'Date'}</TableHead>
+                                    <TableHead>Utilisateur</TableHead>
+                                    <TableHead>Rôle</TableHead>
+                                    <TableHead>Action</TableHead>
+                                    <TableHead>Adresse IP</TableHead>
+                                    <TableHead>Appareil</TableHead>
+                                    <TableHead>Détails</TableHead>
+                                    <TableHead className="text-right">Date</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -301,18 +304,20 @@ export default function LogsPage() {
                                         <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                                             <div className="flex items-center justify-center gap-2">
                                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                                {t.common?.loading || 'Loading...'}
+                                                Chargement…
                                             </div>
                                         </TableCell>
                                     </TableRow>
-                                ) : filteredLogs.length === 0 ? (
+                                ) : logs.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                                            {t.analytics?.logs?.noLogs || 'No logs found.'}
+                                            {hasFilters
+                                                ? 'Aucune entrée ne correspond à ces critères.'
+                                                : 'Aucune entrée enregistrée.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    filteredLogs.map((log) => (
+                                    logs.map((log) => (
                                         <TableRow key={log.id} className="hover:bg-slate-50/50 transition-colors">
                                             <TableCell>
                                                 <div className="flex items-center gap-3">
@@ -320,7 +325,9 @@ export default function LogsPage() {
                                                         {(log.user?.name || log.user?.email || '?').charAt(0).toUpperCase()}
                                                     </div>
                                                     <div>
-                                                        <div className="font-medium text-sm text-slate-900">{log.user?.name || 'Unknown'}</div>
+                                                        <div className="font-medium text-sm text-slate-900">
+                                                            {log.user?.name || (log.user ? log.user.email : 'Système')}
+                                                        </div>
                                                         <div className="text-xs text-muted-foreground">{log.user?.email}</div>
                                                     </div>
                                                 </div>
@@ -334,14 +341,14 @@ export default function LogsPage() {
                                                         {log.user.role}
                                                     </span>
                                                 ) : (
-                                                    <span className="text-xs text-slate-400">System/Deleted</span>
+                                                    <span className="text-xs text-slate-400">Système / supprimé</span>
                                                 )}
                                             </TableCell>
                                             <TableCell className="font-medium text-slate-700">
                                                 {log.action}
                                             </TableCell>
                                             <TableCell className="text-xs font-mono text-slate-500">
-                                                {log.ipAddress || '-'}
+                                                {log.ipAddress || '—'}
                                             </TableCell>
                                             <TableCell className="text-xs text-slate-500">
                                                 <span title={log.userAgent || ''}>
@@ -365,25 +372,25 @@ export default function LogsPage() {
                     {pagination.pages > 1 && (
                         <div className="flex items-center justify-between px-4 py-4 border-t mt-4">
                             <div className="text-sm text-muted-foreground">
-                                Showing {logs.length} of {pagination.total} logs (Page {pagination.currentPage} of {pagination.pages})
+                                {logs.length} sur {pagination.total} — page {page} / {pagination.pages}
                             </div>
                             <div className="flex items-center gap-2">
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => setPagination(p => ({ ...p, currentPage: p.currentPage - 1 }))}
-                                    disabled={pagination.currentPage === 1 || loading}
+                                    onClick={() => setPage(p => p - 1)}
+                                    disabled={page === 1 || loading}
                                 >
                                     <ChevronLeft className="h-4 w-4 mr-1" />
-                                    Previous
+                                    Précédent
                                 </Button>
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => setPagination(p => ({ ...p, currentPage: p.currentPage + 1 }))}
-                                    disabled={pagination.currentPage === pagination.pages || loading}
+                                    onClick={() => setPage(p => p + 1)}
+                                    disabled={page >= pagination.pages || loading}
                                 >
-                                    Next
+                                    Suivant
                                     <ChevronRight className="h-4 w-4 ml-1" />
                                 </Button>
                             </div>
@@ -391,6 +398,21 @@ export default function LogsPage() {
                     )}
                 </CardContent>
             </Card>
+
+            <ConfirmDialog
+                open={confirmClear}
+                onOpenChange={setConfirmClear}
+                title="Purger tout le journal d'audit ?"
+                description={
+                    <>
+                        Les <strong>{pagination.total} entrées</strong> seront supprimées, y compris
+                        celles hors du filtre courant. Le journal retrace qui a fait quoi :
+                        cette action est irréversible.
+                    </>
+                }
+                confirmLabel="Tout supprimer"
+                onConfirm={handleClearLogs}
+            />
         </motion.div>
     );
 }

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
 import { logAction } from '@/lib/actions';
 import { DEFAULT_MANAGER_SECTIONS } from '@/lib/sections';
+import { STAFF_ROLES } from '@/lib/server/staff-guards';
 
 
 export async function GET() {
@@ -44,12 +45,34 @@ export async function POST(req: Request) {
         const { name, email, password, role, logo } = body;
 
         if (!email || !password) {
-            return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+            return NextResponse.json(
+                { error: 'E-mail et mot de passe sont obligatoires.' },
+                { status: 400 }
+            );
+        }
+
+        // A password shorter than this is not worth hashing: the account it
+        // protects can suspend colleagues and read the whole audit trail.
+        if (String(password).length < 8) {
+            return NextResponse.json(
+                { error: 'Le mot de passe doit contenir au moins 8 caractères.' },
+                { status: 400 }
+            );
+        }
+
+        if (role !== undefined && !STAFF_ROLES.includes(role)) {
+            return NextResponse.json(
+                { error: 'Rôle invalide : ADMIN ou MANAGER.' },
+                { status: 400 }
+            );
         }
 
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
-            return NextResponse.json({ error: 'User already exists' }, { status: 409 });
+            return NextResponse.json(
+                { error: 'Cette adresse e-mail est déjà utilisée.' },
+                { status: 409 }
+            );
         }
 
         const hashedPassword = await hashPassword(password);

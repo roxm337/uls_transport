@@ -1,25 +1,25 @@
 'use client';
 
 import { useState, useEffect } from "react";
-import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { motion } from "framer-motion";
-import { Bell, User, Save, Loader2, MessageCircle } from "lucide-react";
+import { User, Save, Loader2, KeyRound } from "lucide-react";
 import { useLanguage } from '@/lib/i18n/context';
-import { getAdminSetting, updateAdminSetting, getUserProfile, updateUserProfile } from "@/lib/actions";
+import { getUserProfile, updateUserProfile, changeOwnPassword } from "@/lib/actions";
 import { toast } from "sonner";
-import { Textarea } from "@/components/ui/textarea";
-import { useAdminRole } from "@/components/admin/AdminLayoutClient";
+
+const EMPTY_PASSWORDS = { current: '', next: '', confirm: '' };
 
 export default function SettingsPage() {
     const { t } = useLanguage();
     const [profile, setProfile] = useState({ name: '', email: '' });
     const [isLoading, setIsLoading] = useState(true);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
+    const [passwords, setPasswords] = useState(EMPTY_PASSWORDS);
+    const [isSavingPassword, setIsSavingPassword] = useState(false);
 
     useEffect(() => {
         async function loadProfile() {
@@ -50,10 +50,39 @@ export default function SettingsPage() {
             } else {
                 toast.error(result.error || t.settingsPage.toasts.saveError);
             }
-        } catch (error) {
+        } catch {
             toast.error(t.settingsPage.toasts.saveError);
         } finally {
             setIsSavingProfile(false);
+        }
+    };
+
+    const handleChangePassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // Caught here as well as on the server: a typo in the confirmation
+        // should not cost a round trip to find out.
+        if (passwords.next !== passwords.confirm) {
+            toast.error('Les deux nouveaux mots de passe ne correspondent pas.');
+            return;
+        }
+
+        setIsSavingPassword(true);
+        try {
+            const result = await changeOwnPassword({
+                currentPassword: passwords.current,
+                newPassword: passwords.next,
+            });
+            if (result.success) {
+                toast.success('Mot de passe mis à jour.');
+                setPasswords(EMPTY_PASSWORDS);
+            } else {
+                toast.error(result.error || 'Changement impossible.');
+            }
+        } catch {
+            toast.error('Changement impossible.');
+        } finally {
+            setIsSavingPassword(false);
         }
     };
 
@@ -123,6 +152,77 @@ export default function SettingsPage() {
                 </Card>
 
 
+                <Card className="border-none shadow-sm bg-white/60 backdrop-blur-md">
+                    <CardHeader>
+                        <div className="flex items-center gap-2">
+                            <KeyRound className="h-5 w-5 text-primary" />
+                            <CardTitle>Mot de passe</CardTitle>
+                        </div>
+                        <CardDescription>
+                            Changez votre mot de passe. Le mot de passe actuel est demandé
+                            pour confirmer qu&apos;il s&apos;agit bien de vous.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <form onSubmit={handleChangePassword} className="space-y-4">
+                            <div className="space-y-2 md:max-w-sm">
+                                <Label htmlFor="current-password">Mot de passe actuel</Label>
+                                <Input
+                                    id="current-password"
+                                    type="password"
+                                    autoComplete="current-password"
+                                    value={passwords.current}
+                                    onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+                                    className="bg-white"
+                                    required
+                                    disabled={isSavingPassword}
+                                />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <Label htmlFor="new-password">Nouveau mot de passe</Label>
+                                    <Input
+                                        id="new-password"
+                                        type="password"
+                                        autoComplete="new-password"
+                                        minLength={8}
+                                        value={passwords.next}
+                                        onChange={(e) => setPasswords({ ...passwords, next: e.target.value })}
+                                        className="bg-white"
+                                        required
+                                        disabled={isSavingPassword}
+                                    />
+                                    <p className="text-xs text-muted-foreground">8 caractères minimum.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="confirm-password">Confirmer</Label>
+                                    <Input
+                                        id="confirm-password"
+                                        type="password"
+                                        autoComplete="new-password"
+                                        minLength={8}
+                                        value={passwords.confirm}
+                                        onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
+                                        className="bg-white"
+                                        required
+                                        disabled={isSavingPassword}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end pt-2">
+                                <Button type="submit" className="shadow-md" disabled={isSavingPassword}>
+                                    {isSavingPassword ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <KeyRound className="mr-2 h-4 w-4" />
+                                    )}
+                                    Changer le mot de passe
+                                </Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
+
                 {/*
                   * The notifications card that used to sit here offered two
                   * switches — "nouveaux leads" and "rapports hebdomadaires" —
@@ -131,7 +231,8 @@ export default function SettingsPage() {
                   * rather than persisted, because storing a flag no sender
                   * reads would still promise mail that never arrives.
                   *
-                  * Bring it back with the notification triggers themselves.
+                  * Per-client transport notifications now live where the
+                  * sending does: Messagerie → Configuration.
                   */}
             </div>
         </motion.div>

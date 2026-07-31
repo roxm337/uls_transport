@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { logAction } from '@/lib/actions';
 import { requireSection, canDelete } from '@/lib/server/staff-auth';
 import { EXPEDITION_STATUS_VALUES, SERVICE_SLUGS } from '@/lib/crm';
+import { notifyExpedition } from '@/lib/server/expedition-notifications';
 
 const SECTION = '/admin/expeditions';
 
@@ -156,7 +157,18 @@ export async function PATCH(
             status: expedition.status,
         });
 
-        return NextResponse.json({ expedition: present(expedition) });
+        // Only a status transition is worth notifying about — a corrected
+        // postcode is not news to the client. Never fatal: the shipment is
+        // already saved.
+        const notified = statusChanged
+            ? await notifyExpedition({
+                expeditionId: id,
+                kind: 'status',
+                previousStatus: previous.status,
+            })
+            : null;
+
+        return NextResponse.json({ expedition: present(expedition), notified });
     } catch (error) {
         console.error('Failed to update expedition:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

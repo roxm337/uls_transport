@@ -28,6 +28,9 @@ export async function GET(
                     orderBy: { createdAt: 'desc' },
                     take: 50,
                 },
+                // The list above is capped at 50; without the real total the
+                // screen would present a truncated list as the whole history.
+                _count: { select: { expeditions: true, contacts: true } },
             },
         });
 
@@ -35,9 +38,21 @@ export async function GET(
             return NextResponse.json({ error: 'Client introuvable.' }, { status: 404 });
         }
 
+        // accountManagerId is a plain column, not a foreign key, so it has to
+        // be resolved by hand. A manager since deleted resolves to null.
+        const manager = client.accountManagerId
+            ? await prisma.user.findUnique({
+                where: { id: client.accountManagerId },
+                select: { id: true, name: true, email: true },
+            })
+            : null;
+
         return NextResponse.json({
             client: {
                 ...client,
+                accountManager: manager
+                    ? { id: manager.id, name: manager.name || manager.email }
+                    : null,
                 // Decimal does not survive JSON cleanly — hand back plain numbers.
                 expeditions: client.expeditions.map(e => ({
                     ...e,

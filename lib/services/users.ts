@@ -32,18 +32,20 @@ export async function createUser(data: { name: string; email: string; password: 
     return res.json();
 }
 
+/**
+ * Every field is optional: the API applies only what it receives, so a
+ * status toggle no longer has to echo back the name, e-mail and role it
+ * isn't changing.
+ */
 export async function updateUser(
     id: string,
     data: {
-        name: string;
-        email: string;
-        role: string;
+        name?: string;
+        email?: string;
+        role?: string;
         password?: string;
         status?: string;
         logo?: string;
-        clientMessagingEnabled?: boolean;
-        dashboardEnabled?: boolean;
-        messagingEnabled?: boolean;
     }
 ) {
     const res = await fetch(`/api/admin/users/${id}`, {
@@ -62,6 +64,11 @@ export async function deleteUser(id: string) {
     const res = await fetch(`/api/admin/users/${id}`, {
         method: 'DELETE',
     });
-    if (!res.ok) throw new Error('Failed to delete user');
+    if (!res.ok) {
+        // The refusals that matter here — last administrator, own account —
+        // are explained in the body; a generic message would hide them.
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete user');
+    }
     return res.json();
 }

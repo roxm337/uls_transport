@@ -7,6 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { FileText, Check, Star, Eye, Loader2, Sparkles, Mail, MessageCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { templateCategoryLabel } from '@/lib/crm';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Tooltip,
@@ -77,13 +78,10 @@ export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePi
         return acc;
     }, {} as Record<string, MessageTemplate[]>);
 
-    const categoryLabels: Record<string, string> = {
-        welcome: 'Welcome',
-        'follow-up': 'Follow-up',
-        reminder: 'Reminder',
-        notification: 'Notification',
-        other: 'Other'
-    };
+    // Labels come from the shared catalogue so the expedition categories,
+    // which the notification trigger reads, are named the same everywhere.
+    const labelFor = (category: string) =>
+        category === 'other' ? 'Autre' : templateCategoryLabel(category);
 
     const categoryColors: Record<string, string> = {
         welcome: 'bg-green-100 text-green-700',
@@ -92,6 +90,11 @@ export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePi
         notification: 'bg-brand-100 text-ink-900',
         other: 'bg-slate-100 text-slate-700'
     };
+
+    const colorFor = (category: string) =>
+        category.startsWith('expedition:')
+            ? 'bg-sky-100 text-sky-700'
+            : categoryColors[category] ?? categoryColors.other;
 
     // Format WhatsApp preview text
     const formatPreview = (text: string) => {
@@ -158,8 +161,8 @@ export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePi
                                     {Object.entries(groupedTemplates).map(([category, categoryTemplates]) => (
                                         <CommandGroup key={category} heading={
                                             <span className="flex items-center gap-2">
-                                                <Badge variant="secondary" className={cn("text-[10px] px-1.5", categoryColors[category])}>
-                                                    {categoryLabels[category] || category}
+                                                <Badge variant="secondary" className={cn("text-[10px] px-1.5", colorFor(category))}>
+                                                    {labelFor(category)}
                                                 </Badge>
                                                 <span className="text-[10px] text-slate-400">{categoryTemplates.length}</span>
                                             </span>
@@ -246,8 +249,8 @@ export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePi
                                             )}
                                         </div>
                                         <div className="mt-2 flex items-center justify-between">
-                                            <Badge variant="secondary" className={cn("text-[9px]", categoryColors[hoveredTemplate.category || 'other'])}>
-                                                {categoryLabels[hoveredTemplate.category || 'other']}
+                                            <Badge variant="secondary" className={cn("text-[9px]", colorFor(hoveredTemplate.category || 'other'))}>
+                                                {labelFor(hoveredTemplate.category || 'other')}
                                             </Badge>
                                             {hoveredTemplate.isDefault && (
                                                 <span className="text-[9px] text-amber-600 flex items-center gap-0.5">

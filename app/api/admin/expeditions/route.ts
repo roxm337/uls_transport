@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { logAction } from '@/lib/actions';
 import { requireSection } from '@/lib/server/staff-auth';
 import { nextExpeditionReference } from '@/lib/server/expedition-reference';
+import { notifyExpedition } from '@/lib/server/expedition-notifications';
 import { EXPEDITION_STATUS_VALUES, SERVICE_SLUGS, EXPEDITION_ACTIVE } from '@/lib/crm';
 
 const SECTION = '/admin/expeditions';
@@ -190,7 +191,18 @@ export async function POST(req: Request) {
             client: client.companyName,
         });
 
-        return NextResponse.json({ expedition: present(expedition) }, { status: 201 });
+        // Automatic notification, if the client's configuration asks for one.
+        // Deliberately after the transaction and never fatal: a shipment is
+        // saved whether or not the message goes out.
+        const notified = await notifyExpedition({
+            expeditionId: expedition.id,
+            kind: 'created',
+        });
+
+        return NextResponse.json(
+            { expedition: present(expedition), notified },
+            { status: 201 }
+        );
     } catch (error) {
         console.error('Failed to create expedition:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
