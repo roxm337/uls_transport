@@ -18,17 +18,17 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.185 0 0);
 
-  --muted: oklch(0.97 0 0);
+  --muted: #f3f4f1;
   /* Gray-50 */
   --muted-foreground: oklch(0.556 0 0);
   /* Gray-500 */
 
-  --card: oklch(1 0 0);
+  --card: #ffffff;
   --card-foreground: oklch(0.145 0 0);
 
-  --border: oklch(0.922 0 0);
+  --border: #e5e7e2;
   /* Gray-200 */
-  --input: oklch(0.922 0 0);
+  --input: #dfe2dc;
 
   /* ULS Brand Palette — signal yellow.
      Backgrounds & accents only: yellow never carries text on white.
@@ -52,9 +52,9 @@
   --ink-600: #454545;
   --ink-500: #676767;
 
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  --background: oklch(1 0 0);
+  --background: #f4f5f2;
 
   --foreground: oklch(0.145 0 0);
 
@@ -64,7 +64,7 @@
 
   --destructive: oklch(0.577 0.245 27.325);
 
-  --ring: oklch(0.708 0 0);
+  --ring: #b8a500;
 
   /* Categorical chart ramp: brand yellow leads, then ink, grey,
      and two cool/warm counterpoints so series stay tellable apart. */
@@ -135,6 +135,9 @@
 body {
   font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
   background-color: var(--background);
+  background-image:
+    radial-gradient(circle at 80% -10%, rgba(253, 231, 24, 0.08), transparent 30rem),
+    linear-gradient(180deg, #f7f8f5 0%, #f2f3f0 100%);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100dvh;
@@ -174,7 +177,71 @@ h6 {
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
-  background: #f7f7f5;
+  background: #f4f5f2;
+}
+
+button,
+a,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand-700);
+  outline-offset: 2px;
+}
+
+/* Admin surfaces share a calm, lightly industrial canvas. The faint lane
+   lines make the workspace feel specific to transport without competing
+   with dense operational data. */
+.admin-shell {
+  background-color: #f4f5f2;
+  background-image:
+    linear-gradient(90deg, rgba(10, 10, 10, 0.018) 1px, transparent 1px),
+    linear-gradient(rgba(10, 10, 10, 0.018) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.admin-main {
+  width: 100%;
+  max-width: 1600px;
+  margin-inline: auto;
+  padding: 1.25rem;
+}
+
+.admin-main h1 {
+  text-wrap: balance;
+}
+
+.route-grid {
+  background-image:
+    radial-gradient(circle at 12% 20%, rgba(253, 231, 24, 0.16), transparent 24%),
+    linear-gradient(115deg, transparent 0 63%, rgba(255, 255, 255, 0.04) 63% 64%, transparent 64% 100%);
+}
+
+.route-dashes {
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--brand-500) 0 1.5rem,
+    transparent 1.5rem 2.35rem
+  );
+}
+
+@media (min-width: 768px) {
+  .admin-main {
+    padding: 2rem 2.25rem 3rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ULS accent rule — the yellow underline the brand uses beneath headings */

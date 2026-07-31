@@ -137,9 +137,17 @@ export function parseServices(raw: string | null | undefined): string[] {
     }
 }
 
-export function formatEuros(value: number | null | undefined): string {
+/**
+ * Amounts are always in euros — ULS invoices in euros whatever the reader's
+ * language — but the grouping and decimal separator follow the interface
+ * locale, so an English reader sees €1,234.56 rather than 1 234,56 €.
+ */
+export function formatEuros(
+    value: number | null | undefined,
+    locale: string = 'fr-FR'
+): string {
     if (value === null || value === undefined) return '—';
-    return new Intl.NumberFormat('fr-FR', {
+    return new Intl.NumberFormat(locale, {
         style: 'currency',
         currency: 'EUR',
         maximumFractionDigits: 2,

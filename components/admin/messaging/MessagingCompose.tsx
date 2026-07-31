@@ -526,7 +526,7 @@ export function MessagingCompose() {
                                                 channel === 'whatsapp' ? "text-green-600" : "text-blue-600"
                                             )} />
                                         </div>
-                                        <p className="font-semibold text-slate-700">Message Sent!</p>
+                                        <p className="font-semibold text-slate-700">{t.messaging.ui.sent}</p>
                                     </motion.div>
                                 </motion.div>
                             )}
@@ -600,7 +600,7 @@ export function MessagingCompose() {
                         <CardContent className="space-y-5">
                             {/* Channel Toggle */}
                             <div className="space-y-2">
-                                <Label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Channel</Label>
+                                <Label className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t.messaging.ui.channel}</Label>
                                 <div className="flex bg-slate-100 p-1 rounded-xl">
                                     <motion.button
                                         onClick={() => setChannel('whatsapp')}
@@ -853,7 +853,7 @@ export function MessagingCompose() {
                                                         <div className="relative">
                                                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                                                             <Input
-                                                                placeholder="Search by name, email, phone, or company..."
+                                                                placeholder={t.messaging.ui.searchRecipient}
                                                                 className="pl-9 h-10 bg-white"
                                                                 value={leadSearchQuery}
                                                                 onChange={(e) => setLeadSearchQuery(e.target.value)}
@@ -865,7 +865,7 @@ export function MessagingCompose() {
                                                         {filteredLeads.length === 0 ? (
                                                             <div className="p-8 text-center text-sm text-slate-500">
                                                                 <User className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-                                                                <p>No leads found</p>
+                                                                <p>{t.messaging.ui.noRecipients}</p>
                                                             </div>
                                                         ) : (
                                                             <div className="p-2">
@@ -936,7 +936,7 @@ export function MessagingCompose() {
                                         <Input
                                             value={subject}
                                             onChange={(e) => setSubject(e.target.value)}
-                                            placeholder="Enter email subject..."
+                                            placeholder={t.messaging.ui.subjectPlaceholder}
                                             className={cn(
                                                 "h-11",
                                                 validationErrors.subject && "border-red-300 focus-visible:ring-red-500"
@@ -1052,7 +1052,7 @@ export function MessagingCompose() {
                                     value={message}
                                     onChange={(e) => setMessage(e.target.value)}
                                     onKeyDown={handleKeyDown}
-                                    placeholder="Type your message here..."
+                                    placeholder={t.messaging.ui.messagePlaceholder}
                                     className={cn(
                                         "min-h-[180px] resize-none transition-colors",
                                         validationErrors.message && "border-red-300 focus-visible:ring-red-500"
@@ -1176,13 +1176,13 @@ export function MessagingCompose() {
                                                     <div className="bg-slate-50 px-4 py-3 border-b">
                                                         <div className="space-y-1">
                                                             <div className="flex items-center gap-2 text-xs">
-                                                                <span className="text-slate-500 w-12">To:</span>
+                                                                <span className="text-slate-500 w-12">{t.messaging.ui.to}</span>
                                                                 <span className="text-slate-700">
                                                                     {recipient || 'recipient@email.com'}
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center gap-2 text-xs">
-                                                                <span className="text-slate-500 w-12">Subject:</span>
+                                                                <span className="text-slate-500 w-12">{t.messaging.ui.subjectColon}</span>
                                                                 <span className="text-slate-900 font-medium">
                                                                     {subject || 'No subject'}
                                                                 </span>
@@ -1259,7 +1259,7 @@ export function MessagingCompose() {
                         <div className="space-y-4 pt-4">
                             {channel === 'email' && subject && (
                                 <div className="space-y-1">
-                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Subject</span>
+                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t.messaging.ui.subject}</span>
                                     <p className="text-sm font-semibold text-slate-900">{subject}</p>
                                 </div>
                             )}
@@ -1271,7 +1271,7 @@ export function MessagingCompose() {
                                 </p>
                             </div>
                             <div className="space-y-1">
-                                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Message</span>
+                                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t.messaging.ui.message}</span>
                                 <div className={cn(
                                     "p-4 rounded-lg border text-sm whitespace-pre-wrap",
                                     channel === 'whatsapp' ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"

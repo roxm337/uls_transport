@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { toast } from "sonner";
+import { useLanguage } from '@/lib/i18n/context';
 
 interface ActionLog {
     id: string;
@@ -34,6 +35,7 @@ interface RoleCounts {
 const PAGE_SIZE = 50;
 
 export default function LogsPage() {
+    const { t } = useLanguage();
     const [logs, setLogs] = useState<ActionLog[]>([]);
     const [actions, setActions] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
@@ -66,7 +68,7 @@ export default function LogsPage() {
             if (actionFilter !== 'all') qs.set('action', actionFilter);
 
             const res = await fetch(`/api/admin/logs?${qs.toString()}`, { cache: 'no-store' });
-            if (!res.ok) throw new Error('Chargement impossible.');
+            if (!res.ok) throw new Error(t.logs.loadFailed);
 
             const data = await res.json();
             setLogs(data.logs ?? []);
@@ -78,7 +80,7 @@ export default function LogsPage() {
             // A failed background refresh stays quiet: the visible table is
             // still valid, and a toast every 30s would be noise.
             if (!silent) {
-                toast.error(error instanceof Error ? error.message : 'Chargement impossible.');
+                toast.error(error instanceof Error ? error.message : t.logs.loadFailed);
             }
         } finally {
             if (!silent) setLoading(false);
@@ -97,21 +99,21 @@ export default function LogsPage() {
         setClearing(true);
         try {
             const res = await fetch('/api/admin/logs', { method: 'DELETE' });
-            if (!res.ok) throw new Error('Purge impossible.');
+            if (!res.ok) throw new Error(t.logs.purgeFailed);
             const data = await res.json();
-            toast.success(`${data.deleted ?? 0} entrée(s) supprimée(s).`);
+            toast.success(t.logs.purged(data.deleted ?? 0));
             setLogs([]);
             setPage(1);
             setPagination({ total: 0, pages: 1 });
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Purge impossible.');
+            toast.error(error instanceof Error ? error.message : t.logs.purgeFailed);
         } finally {
             setClearing(false);
         }
     }
 
     const formatDate = (dateString: string) =>
-        new Date(dateString).toLocaleString('fr-FR', {
+        new Date(dateString).toLocaleString(t.locale, {
             day: '2-digit', month: '2-digit', year: 'numeric',
             hour: '2-digit', minute: '2-digit',
         });
@@ -141,7 +143,7 @@ export default function LogsPage() {
         if (ua.includes('Macintosh')) return 'Mac';
         if (ua.includes('Windows')) return 'Windows';
         if (ua.includes('Linux')) return 'Linux';
-        return ua.split(' ')[0] || 'Inconnu';
+        return ua.split(' ')[0] || t.logs.unknownDevice;
     };
 
     // Counts describe the page on screen, and say so — the totals for the
@@ -171,10 +173,10 @@ export default function LogsPage() {
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                    { label: 'Entrées (total)', value: pagination.total, icon: History, color: 'slate' },
-                    { label: 'Admins (page)', value: stats.ADMIN, icon: Shield, color: 'brand' },
-                    { label: 'Managers (page)', value: stats.MANAGER, icon: UserCheck, color: 'blue' },
-                    { label: 'Système (page)', value: stats.SYSTEM, icon: Users, color: 'amber' },
+                    { label: t.logs.totalEntries, value: pagination.total, icon: History, color: 'slate' },
+                    { label: t.logs.adminsOnPage, value: stats.ADMIN, icon: Shield, color: 'brand' },
+                    { label: t.logs.managersOnPage, value: stats.MANAGER, icon: UserCheck, color: 'blue' },
+                    { label: t.logs.systemOnPage, value: stats.SYSTEM, icon: Users, color: 'amber' },
                 ].map((stat) => (
                     <Card key={stat.label} className="border-none shadow-sm">
                         <CardContent className="p-4">
@@ -195,13 +197,13 @@ export default function LogsPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <h1 className="text-2xl font-bold tracking-tight">Journal d&apos;audit</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">{t.logs.title}</h1>
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 text-[10px] font-bold uppercase tracking-wider">
                         <span className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                         </span>
-                        Live
+                        {t.logs.live}
                     </div>
                 </div>
                 <Button
@@ -212,7 +214,7 @@ export default function LogsPage() {
                     disabled={clearing || pagination.total === 0}
                 >
                     {clearing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                    Purger le journal
+                    {t.logs.purge}
                 </Button>
             </div>
 
@@ -223,9 +225,9 @@ export default function LogsPage() {
                             <History className="h-5 w-5 text-ink-900" />
                         </div>
                         <div>
-                            <CardTitle>Historique des actions</CardTitle>
+                            <CardTitle>{t.logs.cardTitle}</CardTitle>
                             <CardDescription>
-                                Qui a fait quoi, depuis quelle adresse et quand.
+                                {t.logs.cardSubtitle}
                             </CardDescription>
                         </div>
                     </div>
@@ -233,7 +235,7 @@ export default function LogsPage() {
                         <div className="relative flex-1 min-w-[220px]">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <Input
-                                placeholder="Utilisateur, action, IP, détails…"
+                                placeholder={t.logs.searchPlaceholder}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="pl-9 h-9"
@@ -243,7 +245,7 @@ export default function LogsPage() {
                                     type="button"
                                     onClick={() => setSearchQuery('')}
                                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                    aria-label="Effacer la recherche"
+                                    aria-label={t.logs.clearSearch}
                                 >
                                     <XCircle className="h-4 w-4" />
                                 </button>
@@ -253,21 +255,21 @@ export default function LogsPage() {
                             <Filter className="h-4 w-4 text-slate-500" />
                             <Select value={roleFilter} onValueChange={v => { setRoleFilter(v); setPage(1); }}>
                                 <SelectTrigger className="w-[150px] h-9">
-                                    <SelectValue placeholder="Rôle" />
+                                    <SelectValue placeholder={t.logs.table.role} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">Tous les rôles</SelectItem>
+                                    <SelectItem value="all">{t.logs.allRoles}</SelectItem>
                                     <SelectItem value="ADMIN">Admin</SelectItem>
                                     <SelectItem value="MANAGER">Manager</SelectItem>
-                                    <SelectItem value="SYSTEM">Système</SelectItem>
+                                    <SelectItem value="SYSTEM">{t.logs.system}</SelectItem>
                                 </SelectContent>
                             </Select>
                             <Select value={actionFilter} onValueChange={v => { setActionFilter(v); setPage(1); }}>
                                 <SelectTrigger className="w-[190px] h-9">
-                                    <SelectValue placeholder="Action" />
+                                    <SelectValue placeholder={t.logs.table.action} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">Toutes les actions</SelectItem>
+                                    <SelectItem value="all">{t.logs.allActions}</SelectItem>
                                     {actions.map(action => (
                                         <SelectItem key={action} value={action}>{action}</SelectItem>
                                     ))}
@@ -276,11 +278,11 @@ export default function LogsPage() {
                         </div>
                         {hasFilters && (
                             <Button variant="ghost" size="sm" onClick={clearFilters}>
-                                Réinitialiser
+                                {t.logs.resetFilters}
                             </Button>
                         )}
                         <div className="ml-auto text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-                            {pagination.total} résultat{pagination.total === 1 ? '' : 's'}
+                            {t.logs.results(pagination.total)}
                         </div>
                     </div>
                 </CardHeader>
@@ -289,13 +291,13 @@ export default function LogsPage() {
                         <Table>
                             <TableHeader className="bg-slate-50">
                                 <TableRow>
-                                    <TableHead>Utilisateur</TableHead>
-                                    <TableHead>Rôle</TableHead>
-                                    <TableHead>Action</TableHead>
-                                    <TableHead>Adresse IP</TableHead>
-                                    <TableHead>Appareil</TableHead>
-                                    <TableHead>Détails</TableHead>
-                                    <TableHead className="text-right">Date</TableHead>
+                                    <TableHead>{t.logs.table.user}</TableHead>
+                                    <TableHead>{t.logs.table.role}</TableHead>
+                                    <TableHead>{t.logs.table.action}</TableHead>
+                                    <TableHead>{t.logs.table.ip}</TableHead>
+                                    <TableHead>{t.logs.table.device}</TableHead>
+                                    <TableHead>{t.logs.table.details}</TableHead>
+                                    <TableHead className="text-right">{t.logs.table.date}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -304,16 +306,14 @@ export default function LogsPage() {
                                         <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                                             <div className="flex items-center justify-center gap-2">
                                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                                Chargement…
+                                                {t.common.loading}
                                             </div>
                                         </TableCell>
                                     </TableRow>
                                 ) : logs.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                                            {hasFilters
-                                                ? 'Aucune entrée ne correspond à ces critères.'
-                                                : 'Aucune entrée enregistrée.'}
+                                            {hasFilters ? t.logs.emptyFiltered : t.logs.empty}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -326,7 +326,7 @@ export default function LogsPage() {
                                                     </div>
                                                     <div>
                                                         <div className="font-medium text-sm text-slate-900">
-                                                            {log.user?.name || (log.user ? log.user.email : 'Système')}
+                                                            {log.user?.name || (log.user ? log.user.email : t.logs.system)}
                                                         </div>
                                                         <div className="text-xs text-muted-foreground">{log.user?.email}</div>
                                                     </div>
@@ -341,7 +341,7 @@ export default function LogsPage() {
                                                         {log.user.role}
                                                     </span>
                                                 ) : (
-                                                    <span className="text-xs text-slate-400">Système / supprimé</span>
+                                                    <span className="text-xs text-slate-400">{t.logs.systemOrDeleted}</span>
                                                 )}
                                             </TableCell>
                                             <TableCell className="font-medium text-slate-700">
@@ -372,7 +372,7 @@ export default function LogsPage() {
                     {pagination.pages > 1 && (
                         <div className="flex items-center justify-between px-4 py-4 border-t mt-4">
                             <div className="text-sm text-muted-foreground">
-                                {logs.length} sur {pagination.total} — page {page} / {pagination.pages}
+                                {t.logs.showing(logs.length, pagination.total, page, pagination.pages)}
                             </div>
                             <div className="flex items-center gap-2">
                                 <Button
@@ -382,7 +382,7 @@ export default function LogsPage() {
                                     disabled={page === 1 || loading}
                                 >
                                     <ChevronLeft className="h-4 w-4 mr-1" />
-                                    Précédent
+                                    {t.pagination.previous}
                                 </Button>
                                 <Button
                                     variant="outline"
@@ -390,7 +390,7 @@ export default function LogsPage() {
                                     onClick={() => setPage(p => p + 1)}
                                     disabled={page >= pagination.pages || loading}
                                 >
-                                    Suivant
+                                    {t.pagination.next}
                                     <ChevronRight className="h-4 w-4 ml-1" />
                                 </Button>
                             </div>
@@ -402,15 +402,9 @@ export default function LogsPage() {
             <ConfirmDialog
                 open={confirmClear}
                 onOpenChange={setConfirmClear}
-                title="Purger tout le journal d'audit ?"
-                description={
-                    <>
-                        Les <strong>{pagination.total} entrées</strong> seront supprimées, y compris
-                        celles hors du filtre courant. Le journal retrace qui a fait quoi :
-                        cette action est irréversible.
-                    </>
-                }
-                confirmLabel="Tout supprimer"
+                title={t.logs.purgeTitle}
+                description={t.logs.purgeBody(pagination.total)}
+                confirmLabel={t.logs.purgeConfirm}
                 onConfirm={handleClearLogs}
             />
         </motion.div>

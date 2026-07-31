@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Menu, Settings, LogOut } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Menu, Settings, LogOut, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -19,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { LanguageSwitcher } from '@/components/admin/LanguageSwitcher';
 import { useLanguage } from '@/lib/i18n/context';
 import type { AdminAccount } from '@/components/admin/AdminLayoutClient';
+import { BRAND } from '@/lib/brand';
 
 interface AdminHeaderProps {
     onMobileMenuClick?: () => void;
@@ -35,6 +38,18 @@ function initial(account: AdminAccount): string {
 export function AdminHeader({ onMobileMenuClick, account, role }: AdminHeaderProps) {
     const { t } = useLanguage();
     const router = useRouter();
+    const pathname = usePathname();
+
+    const sections = [
+        ['/admin/clients', t.sidebar.clients],
+        ['/admin/expeditions', t.sidebar.expeditions],
+        ['/admin/analytics', t.sidebar.analytics],
+        ['/admin/users', t.sidebar.team],
+        ['/admin/messaging', t.sidebar.messaging],
+        ['/admin/logs', t.sidebar.logs],
+        ['/admin/settings', t.sidebar.settings],
+    ] as const;
+    const currentSection = sections.find(([href]) => pathname.startsWith(href))?.[1] ?? t.sidebar.dashboard;
 
     const handleLogout = async () => {
         try {
@@ -47,12 +62,21 @@ export function AdminHeader({ onMobileMenuClick, account, role }: AdminHeaderPro
     };
 
     return (
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-white/75 px-4 md:px-6 backdrop-blur-sm">
+        <header className="sticky top-0 z-30 flex h-[4.5rem] items-center gap-4 border-b border-ink-950/[0.07] bg-white/85 px-4 shadow-[0_1px_0_rgba(255,255,255,.8)] backdrop-blur-xl md:px-8">
             {/* Mobile Menu Button */}
             <div className="flex items-center gap-2 md:hidden">
-                <Button variant="ghost" size="icon" onClick={onMobileMenuClick}>
+                <Button variant="ghost" size="icon" onClick={onMobileMenuClick} aria-label={t.header.openNav}>
                     <Menu className="h-5 w-5" />
                 </Button>
+                <span className="flex h-9 w-[5.5rem] items-center justify-center rounded-lg bg-brand-500 px-1.5">
+                    <Image src={BRAND.logo} alt={BRAND.name} width={404} height={282} className="h-7 w-auto object-contain" />
+                </span>
+            </div>
+
+            <div className="hidden min-w-0 items-center gap-2 md:flex">
+                <span className="text-xs font-medium text-slate-400">ULS</span>
+                <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
+                <span className="truncate text-sm font-semibold text-ink-950">{currentSection}</span>
             </div>
 
             <div className="flex items-center gap-2 md:gap-4 ml-auto">
@@ -65,11 +89,14 @@ export function AdminHeader({ onMobileMenuClick, account, role }: AdminHeaderPro
                 {account && (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                                <Avatar className="h-9 w-9">
+                            <Button variant="ghost" className="relative h-11 gap-2 rounded-xl px-1.5 pr-2.5">
+                                <Avatar className="h-8 w-8 border border-ink-950/10">
                                     {account.logo && <AvatarImage src={account.logo} alt={account.name} />}
                                     <AvatarFallback>{initial(account)}</AvatarFallback>
                                 </Avatar>
+                                <span className="hidden max-w-36 truncate text-xs font-semibold text-ink-800 sm:block">
+                                    {account.name}
+                                </span>
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="w-60" align="end" forceMount>

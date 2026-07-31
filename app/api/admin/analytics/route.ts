@@ -167,8 +167,11 @@ export async function GET() {
         }));
 
         const statusMap = new Map(byStatus.map(s => [s.status, s._count.status]));
+        // The raw `status` rides along with the French label: the interface is
+        // bilingual, so the word shown is the client's to choose.
         const statusData = EXPEDITION_STATUSES
             .map(s => ({
+                status: s.value,
                 name: s.label,
                 value: statusMap.get(s.value) ?? 0,
                 color: STATUS_COLORS[s.value] ?? '#8a8a8a',

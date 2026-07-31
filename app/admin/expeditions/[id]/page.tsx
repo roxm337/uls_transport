@@ -31,8 +31,10 @@ import {
     type Expedition, type ExpeditionEvent, type NotifyOutcome,
 } from '@/lib/services/clients';
 import { useAdminRole } from '@/components/admin/AdminLayoutClient';
+import { useLanguage } from '@/lib/i18n/context';
 
 export default function ExpeditionDetailPage() {
+    const { t } = useLanguage();
     const { id } = useParams<{ id: string }>();
     const router = useRouter();
     const role = useAdminRole();
@@ -53,7 +55,7 @@ export default function ExpeditionDetailPage() {
         try {
             setExpedition(await fetchExpedition(id));
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Expédition introuvable.');
+            toast.error(error instanceof Error ? error.message : t.expeditionDetail.missing);
         } finally {
             setLoading(false);
         }
@@ -69,13 +71,14 @@ export default function ExpeditionDetailPage() {
                 statusNote: note?.trim() || undefined,
             });
             setExpedition(prev => prev ? { ...prev, status: updated.status } : prev);
-            toast.success(`Statut : ${expeditionStatusLabel(status)}`, {
-                description: describeNotification(notified),
-            });
+            toast.success(
+                t.expeditionDetail.statusChanged(t.crm.expeditionStatus[status] ?? status),
+                { description: describeNotification(notified, t) },
+            );
             // Reload so the transition shows up in the timeline.
             void load();
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Mise à jour impossible.');
+            toast.error(error instanceof Error ? error.message : t.expeditionDetail.statusUpdateFailed);
         } finally {
             setUpdatingStatus(false);
         }
@@ -84,10 +87,10 @@ export default function ExpeditionDetailPage() {
     async function handleDelete() {
         try {
             await deleteExpedition(id);
-            toast.success('Expédition supprimée.');
+            toast.success(t.expeditions.deleted(expedition?.reference ?? ''));
             router.push('/admin/expeditions');
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Suppression impossible.');
+            toast.error(error instanceof Error ? error.message : t.expeditions.deleteFailed);
         }
     }
 
@@ -103,20 +106,20 @@ export default function ExpeditionDetailPage() {
         return (
             <div className="space-y-4">
                 <Link href="/admin/expeditions" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-ink-950">
-                    <ArrowLeft className="h-4 w-4" /> Retour aux expéditions
+                    <ArrowLeft className="h-4 w-4" /> {t.expeditionDetail.back}
                 </Link>
-                <p className="text-sm text-slate-500">Cette expédition n&apos;existe pas ou a été supprimée.</p>
+                <p className="text-sm text-slate-500">{t.expeditionDetail.missing}</p>
             </div>
         );
     }
 
     const fmtDate = (v: string | null) =>
-        v ? new Date(v).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
+        v ? new Date(v).toLocaleDateString(t.locale, { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
 
     return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             <Link href="/admin/expeditions" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-ink-950">
-                <ArrowLeft className="h-4 w-4" /> Retour aux expéditions
+                <ArrowLeft className="h-4 w-4" /> {t.expeditionDetail.back}
             </Link>
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -130,7 +133,7 @@ export default function ExpeditionDetailPage() {
                         </h1>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
                             <Badge variant="outline" className={EXPEDITION_STATUS_STYLES[expedition.status] ?? ''}>
-                                {expeditionStatusLabel(expedition.status)}
+                                {t.crm.expeditionStatus[expedition.status] ?? expedition.status}
                             </Badge>
                             <span className="text-slate-500">{serviceLabel(expedition.service)}</span>
                         </div>
@@ -156,17 +159,19 @@ export default function ExpeditionDetailPage() {
                         </SelectTrigger>
                         <SelectContent>
                             {EXPEDITION_STATUSES.map(s => (
-                                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                                <SelectItem key={s.value} value={s.value}>
+                                    {t.crm.expeditionStatus[s.value] ?? s.label}
+                                </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
                     <Button variant="outline" className="gap-2" onClick={() => setEditOpen(true)}>
-                        <Pencil className="h-4 w-4" /> Modifier
+                        <Pencil className="h-4 w-4" /> {t.common.edit}
                     </Button>
                     {isAdmin && (
                         <Button variant="outline" onClick={() => setConfirmDelete(true)}
                             className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700">
-                            <Trash className="h-4 w-4" /> Supprimer
+                            <Trash className="h-4 w-4" /> {t.common.delete}
                         </Button>
                     )}
                 </div>
@@ -176,7 +181,7 @@ export default function ExpeditionDetailPage() {
                 <Card className="border-slate-200">
                     <CardHeader className="pb-3">
                         <CardTitle className="flex items-center gap-2 text-base">
-                            <MapPin className="h-4 w-4 text-slate-400" /> Enlèvement
+                            <MapPin className="h-4 w-4 text-slate-400" /> {t.expeditionDetail.pickup}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
@@ -194,7 +199,7 @@ export default function ExpeditionDetailPage() {
                 <Card className="border-slate-200">
                     <CardHeader className="pb-3">
                         <CardTitle className="flex items-center gap-2 text-base">
-                            <MapPin className="h-4 w-4 text-brand-500" /> Livraison
+                            <MapPin className="h-4 w-4 text-brand-500" /> {t.expeditionDetail.delivery}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
@@ -212,7 +217,7 @@ export default function ExpeditionDetailPage() {
                 <Card className="border-slate-200">
                     <CardHeader className="pb-3">
                         <CardTitle className="flex items-center gap-2 text-base">
-                            <Building2 className="h-4 w-4 text-slate-400" /> Client
+                            <Building2 className="h-4 w-4 text-slate-400" /> {t.expeditionDetail.client}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
@@ -224,7 +229,7 @@ export default function ExpeditionDetailPage() {
                         ) : <p className="text-slate-500">—</p>}
                         <p className="flex items-center gap-2 pt-2 text-slate-800">
                             <Euro className="h-3.5 w-3.5 text-slate-400" />
-                            <span className="font-semibold">{formatEuros(expedition.priceHt)}</span>
+                            <span className="font-semibold">{formatEuros(expedition.priceHt, t.locale)}</span>
                             <span className="text-xs text-slate-400">HT</span>
                         </p>
                     </CardContent>
@@ -234,20 +239,20 @@ export default function ExpeditionDetailPage() {
             <Card className="border-slate-200">
                 <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-base">
-                        <Package className="h-4 w-4 text-slate-400" /> Marchandise
+                        <Package className="h-4 w-4 text-slate-400" /> {t.expeditionDetail.goods}
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
                     <p className="mb-4 text-sm text-slate-800">
-                        {expedition.goodsDescription || 'Aucune description.'}
+                        {expedition.goodsDescription || t.expeditionDetail.noGoods}
                     </p>
                     <div className="grid gap-4 sm:grid-cols-4">
-                        <Stat label="Colis / palettes" value={expedition.packages?.toString() ?? '—'} />
-                        <Stat label="Poids" value={expedition.weightKg ? `${expedition.weightKg} kg` : '—'} />
-                        <Stat label="Véhicule" value={expedition.vehicleType ?? '—'} />
+                        <Stat label={t.expeditionDetail.packages} value={expedition.packages?.toString() ?? '—'} />
+                        <Stat label={t.expeditionDetail.weight} value={expedition.weightKg ? `${expedition.weightKg} kg` : '—'} />
+                        <Stat label={t.expeditionDetail.vehicle} value={expedition.vehicleType ?? '—'} />
                         {expedition.temperature && (
                             <Stat
-                                label="Température"
+                                label={t.expeditionDetail.temperature}
                                 value={expedition.temperature}
                                 icon={Thermometer}
                             />
@@ -256,7 +261,7 @@ export default function ExpeditionDetailPage() {
                     {expedition.notes && (
                         <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-3">
                             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
-                                Notes d&apos;exploitation
+                                {t.expeditionDetail.operationsNotes}
                             </p>
                             <p className="whitespace-pre-wrap text-sm text-slate-700">{expedition.notes}</p>
                         </div>
@@ -267,7 +272,7 @@ export default function ExpeditionDetailPage() {
             <Card className="border-slate-200">
                 <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-base">
-                        <History className="h-4 w-4 text-slate-400" /> Historique
+                        <History className="h-4 w-4 text-slate-400" /> {t.expeditionDetail.history}
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -285,9 +290,9 @@ export default function ExpeditionDetailPage() {
             <ConfirmDialog
                 open={confirmDelete}
                 onOpenChange={setConfirmDelete}
-                title={`Supprimer l'expédition ${expedition.reference} ?`}
-                description="Son historique de statuts sera supprimé avec elle. Cette action est irréversible."
-                confirmLabel="Supprimer l'expédition"
+                title={t.expeditions.deleteTitle(expedition.reference)}
+                description={`${t.expeditions.deleteBody} ${t.common.irreversible}`}
+                confirmLabel={t.expeditions.deleteConfirm}
                 onConfirm={handleDelete}
             />
 
@@ -298,21 +303,21 @@ export default function ExpeditionDetailPage() {
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>
-                            Passer en « {pendingStatus ? expeditionStatusLabel(pendingStatus) : ''} »
+                            {t.expeditionDetail.transitionTitle(pendingStatus ? (t.crm.expeditionStatus[pendingStatus] ?? pendingStatus) : '')}
                         </DialogTitle>
                         <DialogDescription>
-                            Depuis « {expeditionStatusLabel(expedition.status)} ». Une note est
-                            facultative ; elle rejoint l&apos;historique de l&apos;expédition.
+                            {t.expeditionDetail.transitionFrom(t.crm.expeditionStatus[expedition.status] ?? expedition.status)}{' '}
+                            {t.expeditionDetail.transitionHint}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-2">
-                        <Label htmlFor="status-note">Note (facultatif)</Label>
+                        <Label htmlFor="status-note">{t.expeditionDetail.noteLabel}</Label>
                         <Textarea
                             id="status-note"
                             rows={3}
                             value={statusNote}
                             onChange={e => setStatusNote(e.target.value)}
-                            placeholder="Retard au chargement, quai indisponible…"
+                            placeholder={t.expeditionDetail.notePlaceholder}
                         />
                     </div>
                     <DialogFooter>
@@ -321,7 +326,7 @@ export default function ExpeditionDetailPage() {
                             onClick={() => setPendingStatus(null)}
                             disabled={updatingStatus}
                         >
-                            Annuler
+                            {t.common.cancel}
                         </Button>
                         <Button
                             className="bg-brand-500 text-ink-950 hover:bg-brand-400"
@@ -333,7 +338,7 @@ export default function ExpeditionDetailPage() {
                             }}
                         >
                             {updatingStatus && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Confirmer
+                            {t.common.confirm}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -347,29 +352,34 @@ export default function ExpeditionDetailPage() {
  * change. Returns undefined when nothing was configured — silence is the
  * normal case and does not deserve a line of its own.
  */
-function describeNotification(notified: NotifyOutcome | null | undefined): string | undefined {
+function describeNotification(
+    notified: NotifyOutcome | null | undefined,
+    t: ReturnType<typeof useLanguage>['t'],
+): string | undefined {
     if (!notified) return undefined;
 
     const sent = [
-        notified.emailSent && 'e-mail',
-        notified.whatsappSent && 'WhatsApp',
-        notified.staffNotified && 'exploitation',
+        notified.emailSent && t.expeditionDetail.channelEmail,
+        notified.whatsappSent && t.expeditionDetail.channelWhatsapp,
+        notified.staffNotified && t.expeditionDetail.channelStaff,
     ].filter(Boolean) as string[];
 
-    return sent.length > 0 ? `Notification envoyée : ${sent.join(', ')}.` : undefined;
+    return sent.length > 0 ? t.expeditionDetail.notified(sent.join(', ')) : undefined;
 }
 
 function Timeline({ events }: { events: ExpeditionEvent[] }) {
+    const { t } = useLanguage();
+
     if (events.length === 0) {
         return (
             <p className="py-6 text-center text-sm text-slate-500">
-                Aucun mouvement enregistré pour le moment.
+                {t.expeditionDetail.emptyHistory}
             </p>
         );
     }
 
     const fmt = (v: string) =>
-        new Date(v).toLocaleString('fr-FR', {
+        new Date(v).toLocaleString(t.locale, {
             day: '2-digit', month: 'short', year: 'numeric',
             hour: '2-digit', minute: '2-digit',
         });
@@ -385,20 +395,20 @@ function Timeline({ events }: { events: ExpeditionEvent[] }) {
                     <div className="flex flex-wrap items-center gap-2">
                         {event.type === 'created' ? (
                             <span className="text-sm font-medium text-ink-950">
-                                Expédition créée
+                                {t.expeditionDetail.created}
                             </span>
                         ) : (
                             <span className="flex flex-wrap items-center gap-1.5 text-sm text-slate-600">
                                 {event.previousStatus && (
                                     <>
                                         <span className="text-slate-500">
-                                            {expeditionStatusLabel(event.previousStatus)}
+                                            {t.crm.expeditionStatus[event.previousStatus] ?? event.previousStatus}
                                         </span>
                                         <ArrowRight className="h-3 w-3 text-slate-400" />
                                     </>
                                 )}
                                 <span className="font-medium text-ink-950">
-                                    {event.status ? expeditionStatusLabel(event.status) : '—'}
+                                    {event.status ? (t.crm.expeditionStatus[event.status] ?? event.status) : '—'}
                                 </span>
                             </span>
                         )}
@@ -407,7 +417,7 @@ function Timeline({ events }: { events: ExpeditionEvent[] }) {
                                 variant="outline"
                                 className={`text-[10px] ${EXPEDITION_STATUS_STYLES[event.status] ?? ''}`}
                             >
-                                {expeditionStatusLabel(event.status)}
+                                {t.crm.expeditionStatus[event.status] ?? event.status}
                             </Badge>
                         )}
                     </div>

@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/lib/i18n/context';
 
 interface PaginationProps {
     page: number;
@@ -12,7 +13,7 @@ interface PaginationProps {
     shown: number;
     onPageChange: (page: number) => void;
     disabled?: boolean;
-    /** Noun used in the range label, e.g. "expédition". */
+    /** Noun used in the range label, already in the current language. */
     noun?: string;
 }
 
@@ -24,19 +25,19 @@ export function Pagination({
     shown,
     onPageChange,
     disabled,
-    noun = 'résultat',
+    noun,
 }: PaginationProps) {
+    const { t } = useLanguage();
+
     if (total === 0) return null;
 
     const from = (page - 1) * pageSize + 1;
     const to = from + shown - 1;
-    const plural = total > 1 ? 's' : '';
 
     return (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-slate-500">
-                <span className="font-medium text-ink-950">{from}–{to}</span>
-                {' '}sur <span className="font-medium text-ink-950">{total}</span> {noun}{plural}
+                {t.pagination.range(from, to, total, noun ?? t.pagination.result)}
             </p>
 
             {pageCount > 1 && (
@@ -48,10 +49,10 @@ export function Pagination({
                         onClick={() => onPageChange(page - 1)}
                         disabled={disabled || page <= 1}
                     >
-                        <ChevronLeft className="h-4 w-4" /> Précédent
+                        <ChevronLeft className="h-4 w-4" /> {t.pagination.previous}
                     </Button>
                     <span className="text-xs text-slate-500 tabular-nums">
-                        Page {page} / {pageCount}
+                        {t.pagination.page(page, pageCount)}
                     </span>
                     <Button
                         variant="outline"
@@ -60,7 +61,7 @@ export function Pagination({
                         onClick={() => onPageChange(page + 1)}
                         disabled={disabled || page >= pageCount}
                     >
-                        Suivant <ChevronRight className="h-4 w-4" />
+                        {t.pagination.next} <ChevronRight className="h-4 w-4" />
                     </Button>
                 </div>
             )}

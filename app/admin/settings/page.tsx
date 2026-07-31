@@ -63,7 +63,7 @@ export default function SettingsPage() {
         // Caught here as well as on the server: a typo in the confirmation
         // should not cost a round trip to find out.
         if (passwords.next !== passwords.confirm) {
-            toast.error('Les deux nouveaux mots de passe ne correspondent pas.');
+            toast.error(t.settingsPage.password.mismatch);
             return;
         }
 
@@ -74,13 +74,13 @@ export default function SettingsPage() {
                 newPassword: passwords.next,
             });
             if (result.success) {
-                toast.success('Mot de passe mis à jour.');
+                toast.success(t.settingsPage.password.changed);
                 setPasswords(EMPTY_PASSWORDS);
             } else {
-                toast.error(result.error || 'Changement impossible.');
+                toast.error(result.error || t.settingsPage.password.failed);
             }
         } catch {
-            toast.error('Changement impossible.');
+            toast.error(t.settingsPage.password.failed);
         } finally {
             setIsSavingPassword(false);
         }
@@ -156,17 +156,16 @@ export default function SettingsPage() {
                     <CardHeader>
                         <div className="flex items-center gap-2">
                             <KeyRound className="h-5 w-5 text-primary" />
-                            <CardTitle>Mot de passe</CardTitle>
+                            <CardTitle>{t.settingsPage.password.title}</CardTitle>
                         </div>
                         <CardDescription>
-                            Changez votre mot de passe. Le mot de passe actuel est demandé
-                            pour confirmer qu&apos;il s&apos;agit bien de vous.
+                            {t.settingsPage.password.description}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleChangePassword} className="space-y-4">
                             <div className="space-y-2 md:max-w-sm">
-                                <Label htmlFor="current-password">Mot de passe actuel</Label>
+                                <Label htmlFor="current-password">{t.settingsPage.password.current}</Label>
                                 <Input
                                     id="current-password"
                                     type="password"
@@ -180,7 +179,7 @@ export default function SettingsPage() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <Label htmlFor="new-password">Nouveau mot de passe</Label>
+                                    <Label htmlFor="new-password">{t.settingsPage.password.next}</Label>
                                     <Input
                                         id="new-password"
                                         type="password"
@@ -192,10 +191,10 @@ export default function SettingsPage() {
                                         required
                                         disabled={isSavingPassword}
                                     />
-                                    <p className="text-xs text-muted-foreground">8 caractères minimum.</p>
+                                    <p className="text-xs text-muted-foreground">{t.settingsPage.password.hint}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="confirm-password">Confirmer</Label>
+                                    <Label htmlFor="confirm-password">{t.settingsPage.password.confirm}</Label>
                                     <Input
                                         id="confirm-password"
                                         type="password"
@@ -216,7 +215,7 @@ export default function SettingsPage() {
                                     ) : (
                                         <KeyRound className="mr-2 h-4 w-4" />
                                     )}
-                                    Changer le mot de passe
+                                    {t.settingsPage.password.submit}
                                 </Button>
                             </div>
                         </form>

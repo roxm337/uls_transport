@@ -268,7 +268,7 @@ export function MessagingConfigs() {
                         <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50/60 px-4 py-3">
                             <Info className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" />
                             <div className="text-sm text-sky-900">
-                                <p className="font-medium">Qui reçoit les notifications&nbsp;?</p>
+                                <p className="font-medium">{t.messaging.ui.whoReceives}</p>
                                 <p className="text-sky-800">
                                     L&apos;envoi automatique ci-dessous ne concerne que les clients
                                     dont la fiche a « Notifications automatiques » activé.{' '}
@@ -309,7 +309,7 @@ export function MessagingConfigs() {
                                             </div>
                                             <div>
                                                 <CardTitle className="text-base">{t.messaging.config.smtp.title}</CardTitle>
-                                                <CardDescription className="text-xs">Configure SMTP settings</CardDescription>
+                                                <CardDescription className="text-xs">{t.messaging.ui.configureSmtp}</CardDescription>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -370,7 +370,7 @@ export function MessagingConfigs() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-xs">Encryption</Label>
+                                        <Label className="text-xs">{t.messaging.ui.encryption}</Label>
                                         <Select
                                             value={config.smtpEncryption || 'TLS'}
                                             onValueChange={(val) => setConfig({ ...config, smtpEncryption: val })}
@@ -382,7 +382,7 @@ export function MessagingConfigs() {
                                             <SelectContent>
                                                 <SelectItem value="SSL">SSL (Port 465)</SelectItem>
                                                 <SelectItem value="TLS">TLS (Port 587)</SelectItem>
-                                                <SelectItem value="None">None (Not Recommended)</SelectItem>
+                                                <SelectItem value="None">{t.messaging.ui.encryptionNone}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -445,8 +445,8 @@ export function MessagingConfigs() {
                                                     config.smtpAutoSend ? "text-blue-600" : "text-slate-400"
                                                 )} />
                                                 <div>
-                                                    <Label className="text-sm font-medium">Auto-Send</Label>
-                                                    <p className="text-xs text-slate-500">Automatically send emails to new leads</p>
+                                                    <Label className="text-sm font-medium">{t.messaging.ui.autoSend}</Label>
+                                                    <p className="text-xs text-slate-500">{t.messaging.ui.autoSendEmail}</p>
                                                 </div>
                                             </div>
                                             <Switch
@@ -516,7 +516,7 @@ export function MessagingConfigs() {
                                             </div>
                                             <div>
                                                 <CardTitle className="text-base">{t.messaging.config.whatsapp.title}</CardTitle>
-                                                <CardDescription className="text-xs">Configure WhatsApp API</CardDescription>
+                                                <CardDescription className="text-xs">{t.messaging.ui.configureWhatsapp}</CardDescription>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -616,8 +616,8 @@ export function MessagingConfigs() {
                                                     config.whatsappAutoSend ? "text-green-600" : "text-slate-400"
                                                 )} />
                                                 <div>
-                                                    <Label className="text-sm font-medium">Auto-Send</Label>
-                                                    <p className="text-xs text-slate-500">Automatically send WhatsApp to new leads</p>
+                                                    <Label className="text-sm font-medium">{t.messaging.ui.autoSend}</Label>
+                                                    <p className="text-xs text-slate-500">{t.messaging.ui.autoSendWhatsapp}</p>
                                                 </div>
                                             </div>
                                             <Switch
@@ -697,7 +697,7 @@ export function MessagingConfigs() {
                                                 )} />
                                             </div>
                                             <div>
-                                                <CardTitle className="text-base">Staff Notification</CardTitle>
+                                                <CardTitle className="text-base">{t.messaging.ui.staffNotification}</CardTitle>
                                                 <CardDescription className="text-xs">
                                                     Notify your assistant or secretary via WhatsApp when a new lead arrives
                                                 </CardDescription>
@@ -720,7 +720,7 @@ export function MessagingConfigs() {
                                             <CardContent className="space-y-4 pt-0">
                                                 {/* Mode selector */}
                                                 <div className="space-y-2">
-                                                    <Label className="text-xs">Notification Mode</Label>
+                                                    <Label className="text-xs">{t.messaging.ui.notificationMode}</Label>
                                                     <div className="flex gap-3">
                                                         <button
                                                             type="button"
@@ -855,14 +855,14 @@ export function MessagingConfigs() {
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogTitle>{t.messaging.ui.areYouSure}</AlertDialogTitle>
                                             <AlertDialogDescription>
                                                 This will permanently delete the messaging configuration for this client.
                                                 This action cannot be undone.
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
                                             <AlertDialogAction
                                                 onClick={handleDelete}
                                                 className="bg-red-600 hover:bg-red-700"

@@ -20,6 +20,7 @@ import {
     templateCategoryLabel,
 } from '@/lib/crm';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { useLanguage } from '@/lib/i18n/context';
 
 interface MessageTemplate {
     id: string;
@@ -39,6 +40,7 @@ interface MessageTemplate {
 }
 
 export function MessagingTemplates() {
+    const { t } = useLanguage();
     const [templates, setTemplates] = useState<MessageTemplate[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'email' | 'whatsapp'>('email');
@@ -195,16 +197,12 @@ export function MessagingTemplates() {
         }
     };
 
-    const filteredTemplates = templates.filter(t => {
-        if (t.type !== activeTab) return false;
+    const filteredTemplates = templates.filter(tpl => {
+        if (tpl.type !== activeTab) return false;
+        // Filtering by client shows that client's own templates plus the
+        // global ones, which apply to it too.
         if (filterClientId !== 'all' && filterClientId) {
-            // Show global templates + specific client templates
-            // OR strictly filter by client owner?
-            // "Filter by Client" suggests seeing what a client has access to or owns.
-            // Let's show ONLY templates owned by this client + Global ones?
-            // User request: "more cleaner between templates and messaging config".
-            // Seeing only what belongs to the client makes sense.
-            return t.clientId === filterClientId || t.scope === 'global';
+            return tpl.clientId === filterClientId || tpl.scope === 'global';
         }
         return true;
     });
@@ -242,10 +240,10 @@ export function MessagingTemplates() {
                     <div className="flex items-center gap-2">
                         <Select value={filterClientId} onValueChange={setFilterClientId}>
                             <SelectTrigger className="w-[200px]">
-                                <SelectValue placeholder="Filter by Client" />
+                                <SelectValue placeholder={t.messaging.ui.filterByClient} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Clients</SelectItem>
+                                <SelectItem value="all">{t.messaging.ui.allClients}</SelectItem>
                                 {clients.map(client => (
                                     <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
                                 ))}
@@ -260,19 +258,19 @@ export function MessagingTemplates() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Name</TableHead>
-                                        <TableHead>Category</TableHead>
-                                        <TableHead>Scope</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead>Usage</TableHead>
-                                        <TableHead>Last Used</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
+                                        <TableHead>{t.messaging.ui.name}</TableHead>
+                                        <TableHead>{t.messaging.ui.category}</TableHead>
+                                        <TableHead>{t.messaging.ui.scope}</TableHead>
+                                        <TableHead>{t.messaging.ui.status}</TableHead>
+                                        <TableHead>{t.messaging.ui.usage}</TableHead>
+                                        <TableHead>{t.messaging.ui.lastUsed}</TableHead>
+                                        <TableHead className="text-right">{t.common.actions}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {loading ? (
                                         <TableRow>
-                                            <TableCell colSpan={7} className="text-center">Loading...</TableCell>
+                                            <TableCell colSpan={7} className="text-center">{t.common.loading}</TableCell>
                                         </TableRow>
                                     ) : filteredTemplates.length === 0 ? (
                                         <TableRow>
@@ -354,29 +352,29 @@ export function MessagingTemplates() {
                     </DialogHeader>
                     <div className="space-y-4">
                         <div>
-                            <Label htmlFor="name">Template Name *</Label>
+                            <Label htmlFor="name">{t.messaging.ui.templateName} *</Label>
                             <Input
                                 id="name"
                                 value={formName}
                                 onChange={(e) => setFormName(e.target.value)}
-                                placeholder="e.g., Welcome Email"
+                                placeholder={t.messaging.ui.templateNamePlaceholder}
                             />
                         </div>
 
                         {activeTab === 'email' && (
                             <div>
-                                <Label htmlFor="subject">Subject *</Label>
+                                <Label htmlFor="subject">{t.messaging.ui.subject} *</Label>
                                 <Input
                                     id="subject"
                                     value={formSubject}
                                     onChange={(e) => setFormSubject(e.target.value)}
-                                    placeholder="e.g., Welcome to {{company}}!"
+                                    placeholder={t.messaging.ui.subjectExamplePlaceholder}
                                 />
                             </div>
                         )}
 
                         <div>
-                            <Label htmlFor="content">Content *</Label>
+                            <Label htmlFor="content">{t.messaging.ui.content} *</Label>
                             <Textarea
                                 id="content"
                                 value={formContent}
@@ -396,7 +394,7 @@ export function MessagingTemplates() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="category">Category</Label>
+                                <Label htmlFor="category">{t.messaging.ui.category}</Label>
                                 <Select value={formCategory} onValueChange={setFormCategory}>
                                     <SelectTrigger>
                                         <SelectValue />
@@ -424,14 +422,14 @@ export function MessagingTemplates() {
                             </div>
 
                             <div>
-                                <Label htmlFor="scope">Scope</Label>
+                                <Label htmlFor="scope">{t.messaging.ui.scope}</Label>
                                 <Select value={formScope} onValueChange={setFormScope}>
                                     <SelectTrigger>
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="global">Global</SelectItem>
-                                        <SelectItem value="client">Client-specific</SelectItem>
+                                        <SelectItem value="global">{t.messaging.ui.global}</SelectItem>
+                                        <SelectItem value="client">{t.messaging.ui.clientSpecific}</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -442,7 +440,7 @@ export function MessagingTemplates() {
                                 <Label htmlFor="client">Client</Label>
                                 <Select value={formClientId} onValueChange={setFormClientId}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select client" />
+                                        <SelectValue placeholder={t.messaging.ui.selectClient} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {clients.map((client) => (
@@ -462,7 +460,7 @@ export function MessagingTemplates() {
                                     checked={formIsDefault}
                                     onCheckedChange={setFormIsDefault}
                                 />
-                                <Label htmlFor="default">Set as default template</Label>
+                                <Label htmlFor="default">{t.messaging.ui.setDefault}</Label>
                             </div>
 
                             <div className="flex items-center space-x-2">
@@ -471,7 +469,7 @@ export function MessagingTemplates() {
                                     checked={formStatus === 'active'}
                                     onCheckedChange={(checked) => setFormStatus(checked ? 'active' : 'inactive')}
                                 />
-                                <Label htmlFor="active">Active</Label>
+                                <Label htmlFor="active">{t.messaging.ui.active}</Label>
                             </div>
                         </div>
                     </div>
@@ -489,7 +487,7 @@ export function MessagingTemplates() {
             <ConfirmDialog
                 open={templateToDelete !== null}
                 onOpenChange={open => { if (!open) setTemplateToDelete(null); }}
-                title="Supprimer ce modèle ?"
+                title={t.messaging.ui.deleteTemplateTitle}
                 description={
                     <>
                         <strong>{templateToDelete?.name}</strong> sera supprimé.

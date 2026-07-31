@@ -20,6 +20,7 @@ import { ExpeditionDialog } from '@/components/admin/ExpeditionDialog';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { RowActions } from '@/components/admin/RowActions';
 import { useAdminRole } from '@/components/admin/AdminLayoutClient';
+import { useLanguage } from '@/lib/i18n/context';
 import { Pagination } from '@/components/admin/Pagination';
 import {
     EXPEDITION_STATUSES, EXPEDITION_STATUS_STYLES,
@@ -33,8 +34,10 @@ import {
 const PAGE_SIZE = 25;
 
 function ExpeditionsContent() {
+    const { t } = useLanguage();
     const searchParams = useSearchParams();
     const clientId = searchParams.get('clientId') ?? undefined;
+    const createOnArrival = searchParams.get('new') === '1';
     const role = useAdminRole();
     const isAdmin = role?.toUpperCase?.() === 'ADMIN';
 
@@ -44,7 +47,7 @@ function ExpeditionsContent() {
     const [debounced, setDebounced] = React.useState('');
     const [status, setStatus] = React.useState('All');
     const [service, setService] = React.useState('All');
-    const [dialogOpen, setDialogOpen] = React.useState(false);
+    const [dialogOpen, setDialogOpen] = React.useState(createOnArrival);
     // Editing from the row reuses the same dialog: `null` means "create".
     const [editing, setEditing] = React.useState<Expedition | null>(null);
     const [toDelete, setToDelete] = React.useState<Expedition | null>(null);
@@ -58,8 +61,8 @@ function ExpeditionsContent() {
         // Resetting the page alongside the debounced term keeps both in one
         // update: sequencing them separately fired a fetch for the new filter
         // against the old page number first.
-        const t = setTimeout(() => { setDebounced(search); setPage(1); }, 400);
-        return () => clearTimeout(t);
+        const timer = setTimeout(() => { setDebounced(search); setPage(1); }, 400);
+        return () => clearTimeout(timer);
     }, [search]);
 
     const load = React.useCallback(async () => {
@@ -75,7 +78,7 @@ function ExpeditionsContent() {
             // Deleting the last row of the last page can strand us past the end.
             if (result.items.length === 0 && result.page > 1) setPage(result.pageCount);
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Chargement impossible.');
+            toast.error(error instanceof Error ? error.message : t.expeditions.loadFailed);
         } finally {
             setLoading(false);
         }
@@ -86,10 +89,10 @@ function ExpeditionsContent() {
     async function handleDelete(expedition: Expedition) {
         try {
             await deleteExpedition(expedition.id);
-            toast.success(`Expédition ${expedition.reference} supprimée.`);
+            toast.success(t.expeditions.deleted(expedition.reference));
             void load();
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Suppression impossible.');
+            toast.error(error instanceof Error ? error.message : t.expeditions.deleteFailed);
         }
     }
 
@@ -99,24 +102,24 @@ function ExpeditionsContent() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-2xl font-black tracking-tight text-ink-950">Expéditions</h1>
+                    <h1 className="text-2xl font-black tracking-tight text-ink-950">{t.expeditions.title}</h1>
                     <p className="text-sm text-slate-500">
                         {clientId
-                            ? <>Transports de <span className="font-medium text-ink-950">{clientName ?? 'ce client'}</span>. <Link href="/admin/expeditions" className="underline">Voir toutes</Link></>
-                            : 'Tous les transports opérés par ULS Transport.'}
+                            ? <>{t.expeditions.forClient(clientName ?? t.expeditions.thisClient)} <Link href="/admin/expeditions" className="underline">{t.expeditions.seeAllLink}</Link></>
+                            : t.expeditions.subtitle}
                     </p>
                 </div>
                 <Button onClick={() => setDialogOpen(true)}
                     className="bg-brand-500 text-ink-950 hover:bg-brand-400 gap-2 shrink-0">
-                    <Plus className="h-4 w-4" /> Nouvelle expédition
+                    <Plus className="h-4 w-4" /> {t.expeditions.new}
                 </Button>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {[
-                    { label: 'Total', value: totals.all, icon: Package },
-                    { label: 'En cours', value: totals.active, icon: Truck },
-                    { label: 'Livrées', value: totals.delivered, icon: CheckCircle2 },
+                    { label: t.expeditions.totalCard, value: totals.all, icon: Package },
+                    { label: t.expeditions.activeCard, value: totals.active, icon: Truck },
+                    { label: t.expeditions.deliveredCard, value: totals.delivered, icon: CheckCircle2 },
                 ].map(card => (
                     <Card key={card.label} className="border-slate-200">
                         <CardContent className="flex items-center gap-3 p-4">
@@ -142,16 +145,16 @@ function ExpeditionsContent() {
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                             <Input value={search} onChange={e => setSearch(e.target.value)}
-                                placeholder="Référence, client, ville, marchandise…"
+                                placeholder={t.expeditions.searchPlaceholder}
                                 className="pl-9 bg-white" />
                         </div>
 
                         <Select value={status} onValueChange={v => { setStatus(v); setPage(1); }}>
                             <SelectTrigger className="w-full sm:w-[170px] bg-white">
-                                <SelectValue placeholder="Statut" />
+                                <SelectValue placeholder={t.expeditions.table.status} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="All">Tous les statuts</SelectItem>
+                                <SelectItem value="All">{t.expeditions.allStatuses}</SelectItem>
                                 {EXPEDITION_STATUSES.map(s => (
                                     <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                                 ))}
@@ -160,10 +163,10 @@ function ExpeditionsContent() {
 
                         <Select value={service} onValueChange={v => { setService(v); setPage(1); }}>
                             <SelectTrigger className="w-full sm:w-[220px] bg-white">
-                                <SelectValue placeholder="Service" />
+                                <SelectValue placeholder={t.expeditions.table.service} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="All">Tous les services</SelectItem>
+                                <SelectItem value="All">{t.expeditions.allServices}</SelectItem>
                                 {SERVICE_OPTIONS.map(o => (
                                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                                 ))}
@@ -180,13 +183,13 @@ function ExpeditionsContent() {
                         <Table>
                             <TableHeader>
                                 <TableRow className="bg-slate-50">
-                                    <TableHead>Référence</TableHead>
-                                    <TableHead>Client</TableHead>
-                                    <TableHead>Service</TableHead>
-                                    <TableHead>Trajet</TableHead>
-                                    <TableHead>Enlèvement</TableHead>
-                                    <TableHead>Statut</TableHead>
-                                    <TableHead className="text-right">Prix HT</TableHead>
+                                    <TableHead>{t.expeditions.table.reference}</TableHead>
+                                    <TableHead>{t.expeditions.table.client}</TableHead>
+                                    <TableHead>{t.expeditions.table.service}</TableHead>
+                                    <TableHead>{t.expeditions.table.route}</TableHead>
+                                    <TableHead>{t.expeditions.table.pickup}</TableHead>
+                                    <TableHead>{t.expeditions.table.status}</TableHead>
+                                    <TableHead className="text-right">{t.expeditions.table.price}</TableHead>
                                     <TableHead className="w-10" />
                                 </TableRow>
                             </TableHeader>
@@ -194,13 +197,13 @@ function ExpeditionsContent() {
                                 {loading ? (
                                     <TableRow>
                                         <TableCell colSpan={8} className="h-24 text-center text-sm text-slate-500">
-                                            Chargement…
+                                            {t.common.loading}
                                         </TableCell>
                                     </TableRow>
                                 ) : expeditions.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={8} className="h-24 text-center text-sm text-slate-500">
-                                            Aucune expédition ne correspond à ces critères.
+                                            {t.expeditions.empty}
                                         </TableCell>
                                     </TableRow>
                                 ) : expeditions.map(e => (
@@ -225,16 +228,16 @@ function ExpeditionsContent() {
                                         </TableCell>
                                         <TableCell className="text-sm text-slate-600">
                                             {e.pickupDate
-                                                ? new Date(e.pickupDate).toLocaleDateString('fr-FR')
+                                                ? new Date(e.pickupDate).toLocaleDateString(t.locale)
                                                 : '—'}
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className={EXPEDITION_STATUS_STYLES[e.status] ?? ''}>
-                                                {expeditionStatusLabel(e.status)}
+                                                {t.crm.expeditionStatus[e.status] ?? e.status}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-right text-sm font-medium">
-                                            {formatEuros(e.priceHt)}
+                                            {formatEuros(e.priceHt, t.locale)}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <RowActions
@@ -258,7 +261,7 @@ function ExpeditionsContent() {
                         shown={expeditions.length}
                         onPageChange={setPage}
                         disabled={loading}
-                        noun="expédition"
+                        noun={t.pagination.expedition}
                     />
                 </CardContent>
             </Card>
@@ -279,9 +282,9 @@ function ExpeditionsContent() {
             <ConfirmDialog
                 open={toDelete !== null}
                 onOpenChange={open => { if (!open) setToDelete(null); }}
-                title={`Supprimer l'expédition ${toDelete?.reference} ?`}
-                description="Son historique de statuts sera supprimé avec elle. Cette action est irréversible."
-                confirmLabel="Supprimer l'expédition"
+                title={toDelete ? t.expeditions.deleteTitle(toDelete.reference) : ''}
+                description={`${t.expeditions.deleteBody} ${t.common.irreversible}`}
+                confirmLabel={t.expeditions.deleteConfirm}
                 onConfirm={async () => {
                     if (toDelete) await handleDelete(toDelete);
                     setToDelete(null);

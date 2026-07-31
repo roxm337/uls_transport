@@ -39,6 +39,12 @@ export const DEFAULT_MANAGER_SECTIONS: string[] = [
     '/admin/messaging',
 ];
 
+/**
+ * French labels for contexts with no React tree to read the dictionary from:
+ * the permissions screen's source of truth and anything server-side. The
+ * interface resolves its own labels through `lib/i18n`, so a section is never
+ * named in two languages on the same screen.
+ */
 export const SECTION_LABELS: Record<string, string> = {
     '/admin': 'Tableau de bord',
     '/admin/clients': 'Clients',
@@ -46,7 +52,7 @@ export const SECTION_LABELS: Record<string, string> = {
     '/admin/analytics': 'Analytique',
     '/admin/messaging': 'Messagerie',
     '/admin/users': 'Équipe',
-    '/admin/logs': 'Logs',
+    '/admin/logs': 'Journal',
     '/admin/settings': 'Paramètres',
 };
 

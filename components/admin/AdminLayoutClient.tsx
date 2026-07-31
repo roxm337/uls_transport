@@ -6,7 +6,8 @@ import { usePathname } from 'next/navigation';
 import { ShieldOff } from 'lucide-react';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { AdminHeader } from '@/components/admin/AdminHeader';
-import { sectionForPath, SECTION_LABELS } from '@/lib/sections';
+import { sectionForPath } from '@/lib/sections';
+import { useLanguage } from '@/lib/i18n/context';
 
 /** Who is signed in, as shown by the header account menu. */
 export interface AdminAccount {
@@ -65,9 +66,9 @@ export function AdminLayoutClient({
 
     if (!mounted) {
         return (
-            <div className="flex min-h-screen bg-[#f8fafc] dark:bg-gray-900 font-sans invisible">
-                <div className="flex-1 md:ml-64 transition-all duration-300 ease-in-out">
-                    <main className="p-4 md:p-8 max-w-[1920px] mx-auto w-full">
+            <div className="admin-shell flex min-h-screen font-sans invisible">
+                <div className="min-w-0 flex-1 md:ml-[17rem] transition-all duration-300 ease-in-out">
+                    <main className="admin-main">
                         {children}
                     </main>
                 </div>
@@ -77,7 +78,7 @@ export function AdminLayoutClient({
 
     return (
         <AdminContext.Provider value={{ role, allowedSections, account }}>
-            <div className="flex min-h-screen bg-[#f8fafc] dark:bg-gray-900 font-sans">
+            <div className="admin-shell flex min-h-screen font-sans">
                 <AdminSidebar
                     role={role}
                     allowedSections={allowedSections}
@@ -86,14 +87,14 @@ export function AdminLayoutClient({
                 />
 
                 {/* Main Content */}
-                <div className="flex-1 md:ml-64 transition-all duration-300 ease-in-out">
+                <div className="min-w-0 flex-1 md:ml-[17rem] transition-all duration-300 ease-in-out">
                     <AdminHeader
                         onMobileMenuClick={() => setIsMobileSidebarOpen(true)}
                         account={account}
                         role={role}
                     />
 
-                    <main className="p-4 md:p-8 max-w-[1920px] mx-auto w-full">
+                    <main className="admin-main">
                         {denied ? <SectionDenied section={section} /> : children}
                     </main>
                 </div>
@@ -102,8 +103,22 @@ export function AdminLayoutClient({
     );
 }
 
+/** Section path → the sidebar label for it, so both read the same word. */
+const SECTION_LABEL_KEYS: Record<string, keyof ReturnType<typeof useLanguage>['t']['sidebar']> = {
+    '/admin': 'dashboard',
+    '/admin/clients': 'clients',
+    '/admin/expeditions': 'expeditions',
+    '/admin/analytics': 'analytics',
+    '/admin/messaging': 'messaging',
+    '/admin/users': 'team',
+    '/admin/logs': 'logs',
+    '/admin/settings': 'settings',
+};
+
 function SectionDenied({ section }: { section: string | null }) {
-    const label = section ? SECTION_LABELS[section] ?? section : null;
+    const { t } = useLanguage();
+    const key = section ? SECTION_LABEL_KEYS[section] : undefined;
+    const label = key ? t.sidebar[key] : section;
 
     return (
         <div className="flex min-h-[60vh] items-center justify-center">
@@ -112,19 +127,17 @@ function SectionDenied({ section }: { section: string | null }) {
                     <ShieldOff className="h-6 w-6 text-brand-500" />
                 </span>
                 <h1 className="text-xl font-black tracking-tight text-ink-950">
-                    Accès non autorisé
+                    {t.denied.title}
                 </h1>
                 <p className="mt-2 text-sm text-slate-500">
-                    {label
-                        ? <>Votre compte n&apos;a pas accès à la section <span className="font-medium text-ink-950">{label}</span>.</>
-                        : <>Votre compte n&apos;a pas accès à cette section.</>}
-                    {' '}Contactez un administrateur si vous pensez qu&apos;il s&apos;agit d&apos;une erreur.
+                    {label ? t.denied.named(label) : t.denied.generic}{' '}
+                    {t.denied.contact}
                 </p>
                 <Link
                     href="/admin"
                     className="mt-5 inline-flex items-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-bold text-ink-950 transition-colors hover:bg-brand-400"
                 >
-                    Retour au tableau de bord
+                    {t.denied.back}
                 </Link>
             </div>
         </div>

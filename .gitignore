@@ -62,3 +62,4 @@ dockerfile
 public/uploads/
 test-smtp.js
 .claude/
+.impeccable/

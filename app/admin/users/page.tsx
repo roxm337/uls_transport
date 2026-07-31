@@ -89,7 +89,7 @@ export default function UsersPage() {
             setNewLogoPreview('');
             loadUsers();
         } catch (error: unknown) {
-            toast.error(error instanceof Error ? error.message : 'Création impossible.');
+            toast.error(error instanceof Error ? error.message : t.users.create.failed);
         } finally {
             setCreating(false);
         }
@@ -135,10 +135,10 @@ export default function UsersPage() {
                 logo: logoUrl,
             });
             setIsEditOpen(false);
-            toast.success('Compte mis à jour.');
+            toast.success(t.users.edit.updated);
             loadUsers();
         } catch (error: unknown) {
-            toast.error(error instanceof Error ? error.message : 'Mise à jour impossible.');
+            toast.error(error instanceof Error ? error.message : t.users.edit.failed);
         } finally {
             setUpdating(false);
         }
@@ -147,12 +147,12 @@ export default function UsersPage() {
     async function handleDelete(user: User) {
         try {
             await deleteUser(user.id);
-            toast.success('Compte supprimé.');
+            toast.success(t.users.deleted);
             loadUsers();
         } catch (error: unknown) {
             // The refusals worth reading — last administrator, own account —
             // arrive in the message, so show it rather than a generic failure.
-            toast.error(error instanceof Error ? error.message : 'Suppression impossible.');
+            toast.error(error instanceof Error ? error.message : t.users.deleteFailed);
         }
     }
 
@@ -164,9 +164,9 @@ export default function UsersPage() {
             await updateUser(id, { status: newStatus });
 
             loadUsers();
-            toast.success('Statut du compte mis à jour.');
+            toast.success(t.users.statusUpdated);
         } catch (error: unknown) {
-            toast.error(error instanceof Error ? error.message : 'Mise à jour impossible.');
+            toast.error(error instanceof Error ? error.message : t.users.statusFailed);
         }
     }
 
@@ -192,9 +192,9 @@ export default function UsersPage() {
     ];
 
     const roleLabels: Record<string, string> = {
-        ADMIN: 'Admins',
-        MANAGER: 'Managers',
-        OTHER: 'Other Roles',
+        ADMIN: t.users.groupAdmins,
+        MANAGER: t.users.groupManagers,
+        OTHER: t.users.groupOther,
     };
 
     return (
@@ -234,10 +234,11 @@ export default function UsersPage() {
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="password">{t.users.create.password}</Label>
-                                    <Input id="password" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
+                                    <Input id="password" type="password" minLength={8} value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
+                                    <p className="text-xs text-muted-foreground">{t.users.create.passwordHint}</p>
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="role">Role</Label>
+                                    <Label htmlFor="role">{t.users.create.role}</Label>
                                     <select
                                         id="role"
                                         value={newRole}
@@ -249,7 +250,7 @@ export default function UsersPage() {
                                     </select>
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="logo">Photo / avatar (facultatif)</Label>
+                                    <Label htmlFor="logo">{t.users.avatar} ({t.common.optional})</Label>
                                     <div className="flex flex-col gap-2">
                                         <Input
                                             id="logo"
@@ -269,7 +270,7 @@ export default function UsersPage() {
                                         />
                                         {newLogoPreview && (
                                             <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
-                                                <img src={newLogoPreview} alt="Aperçu de l'avatar" className="w-full h-full object-contain" />
+                                                <img src={newLogoPreview} alt={t.users.avatarPreview} className="w-full h-full object-contain" />
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -325,7 +326,7 @@ export default function UsersPage() {
                                     />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="edit-role">Role</Label>
+                                    <Label htmlFor="edit-role">{t.users.create.role}</Label>
                                     <select
                                         id="edit-role"
                                         value={editRole}
@@ -338,7 +339,7 @@ export default function UsersPage() {
                                 </div>
 
                                 <div className="grid gap-2">
-                                    <Label htmlFor="edit-logo">Photo / avatar (facultatif)</Label>
+                                    <Label htmlFor="edit-logo">{t.users.avatar} ({t.common.optional})</Label>
                                     <div className="flex flex-col gap-2">
                                         <Input
                                             id="edit-logo"
@@ -358,7 +359,7 @@ export default function UsersPage() {
                                         />
                                         {editLogoPreview && (
                                             <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
-                                                <img src={editLogoPreview} alt="Aperçu de l'avatar" className="w-full h-full object-contain" />
+                                                <img src={editLogoPreview} alt={t.users.avatarPreview} className="w-full h-full object-contain" />
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -417,7 +418,7 @@ export default function UsersPage() {
                                     <TableRow>
                                         <TableHead className="w-[100px]">{t.users.table.role}</TableHead>
                                         <TableHead>{t.users.table.userDetails}</TableHead>
-                                        <TableHead>Status</TableHead>
+                                        <TableHead>{t.users.table.status}</TableHead>
                                         <TableHead className="hidden md:table-cell">{t.users.table.createdAt}</TableHead>
                                         <TableHead className="text-right">{t.users.table.actions}</TableHead>
                                     </TableRow>
@@ -461,7 +462,7 @@ export default function UsersPage() {
                                                                 </div>
                                                             )}
                                                             <div className="min-w-0">
-                                                                <div className="font-medium text-slate-900 truncate">{user.name || 'Unknown User'}</div>
+                                                                <div className="font-medium text-slate-900 truncate">{user.name || t.users.unknownUser}</div>
                                                                 <div className="text-xs text-muted-foreground truncate">{user.email}</div>
                                                             </div>
                                                         </div>
@@ -484,7 +485,7 @@ export default function UsersPage() {
                                                                 size="sm"
                                                                 className="hover:bg-green-50 hover:text-green-600 text-green-600 transition-colors h-8 w-8 p-0 sm:h-9 sm:w-9"
                                                                 onClick={() => handleStatusChange(user.id, 'ACTIVE')}
-                                                                title="Approve User"
+                                                                title={t.users.approve}
                                                             >
                                                                 <Check className="h-4 w-4" />
                                                             </Button>
@@ -495,7 +496,7 @@ export default function UsersPage() {
                                                                 size="sm"
                                                                 className="hover:bg-amber-50 hover:text-amber-600 text-muted-foreground transition-colors h-8 w-8 p-0 sm:h-9 sm:w-9"
                                                                 onClick={() => handleStatusChange(user.id, 'SUSPENDED')}
-                                                                title="Suspend User"
+                                                                title={t.users.suspend}
                                                             >
                                                                 <Ban className="h-4 w-4" />
                                                             </Button>
@@ -506,7 +507,7 @@ export default function UsersPage() {
                                                                 size="sm"
                                                                 className="hover:bg-green-50 hover:text-green-600 text-muted-foreground transition-colors h-8 w-8 p-0 sm:h-9 sm:w-9"
                                                                 onClick={() => handleStatusChange(user.id, 'ACTIVE')}
-                                                                title="Re-activate User"
+                                                                title={t.users.reactivate}
                                                             >
                                                                 <Check className="h-4 w-4" />
                                                             </Button>
@@ -526,7 +527,7 @@ export default function UsersPage() {
                                                                 size="sm"
                                                                 className="hover:bg-red-50 hover:text-red-600 text-muted-foreground transition-colors h-8 w-8 p-0 sm:h-9 sm:w-9"
                                                                 onClick={() => setUserToDelete(user)}
-                                                                title="Supprimer le compte"
+                                                                title={t.users.deleteConfirm}
                                                             >
                                                                 <Trash className="h-4 w-4" />
                                                             </Button>
@@ -546,15 +547,9 @@ export default function UsersPage() {
             <ConfirmDialog
                 open={userToDelete !== null}
                 onOpenChange={open => { if (!open) setUserToDelete(null); }}
-                title="Supprimer ce compte ?"
-                description={
-                    <>
-                        <strong>{userToDelete?.name || userToDelete?.email}</strong> perdra
-                        immédiatement l&apos;accès au CRM. Ses entrées du journal d&apos;audit
-                        sont conservées, sans auteur. Cette action est irréversible.
-                    </>
-                }
-                confirmLabel="Supprimer le compte"
+                title={t.users.deleteTitle}
+                description={`${t.users.deleteBody(userToDelete?.name || userToDelete?.email || '')} ${t.common.irreversible}`}
+                confirmLabel={t.users.deleteConfirm}
                 onConfirm={async () => {
                     if (userToDelete) await handleDelete(userToDelete);
                     setUserToDelete(null);

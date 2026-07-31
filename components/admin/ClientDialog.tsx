@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { CLIENT_STATUSES, SERVICE_OPTIONS, parseServices } from '@/lib/crm';
+import { useLanguage } from '@/lib/i18n/context';
 import {
     createClient, updateClient, fetchStaffOptions,
     type Client, type StaffOption,
@@ -37,6 +38,7 @@ const EMPTY = {
 };
 
 export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
+    const { t } = useLanguage();
     const isEdit = Boolean(client);
     const [form, setForm] = React.useState(EMPTY);
     const [services, setServices] = React.useState<string[]>([]);
@@ -49,7 +51,7 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
         fetchStaffOptions().then(setStaff).catch(() => {
             // A picker that can't load is a missing field, not a failed save:
             // the rest of the form stays usable.
-            toast.error("Impossible de charger l'équipe.");
+            toast.error(t.clients.staffLoadFailed);
         });
     }, [open]);
 
@@ -91,7 +93,7 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (!form.companyName.trim()) {
-            toast.error('La raison sociale est obligatoire.');
+            toast.error(t.clientDialog.companyRequired);
             return;
         }
 
@@ -107,15 +109,15 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
             };
             if (isEdit && client) {
                 await updateClient(client.id, payload);
-                toast.success('Client mis à jour.');
+                toast.success(t.clientDialog.updated);
             } else {
                 await createClient(payload);
-                toast.success('Client créé.');
+                toast.success(t.clientDialog.created);
             }
             onOpenChange(false);
             onSaved();
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Enregistrement impossible.');
+            toast.error(error instanceof Error ? error.message : t.clientDialog.saveFailed);
         } finally {
             setSaving(false);
         }
@@ -125,16 +127,16 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-2xl max-h-[90dvh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>{isEdit ? 'Modifier le client' : 'Nouveau client'}</DialogTitle>
+                    <DialogTitle>{isEdit ? t.clientDialog.editTitle : t.clientDialog.createTitle}</DialogTitle>
                     <DialogDescription>
-                        Fiche du donneur d&apos;ordre et services ULS souscrits.
+                        {t.clientDialog.description}
                     </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="grid gap-2 sm:col-span-2">
-                            <Label htmlFor="companyName">Raison sociale *</Label>
+                            <Label htmlFor="companyName">{t.clientDialog.companyName} *</Label>
                             <Input
                                 id="companyName"
                                 value={form.companyName}
@@ -145,86 +147,86 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
                         </div>
 
                         <div className="grid gap-2">
-                            <Label htmlFor="siret">SIRET</Label>
+                            <Label htmlFor="siret">{t.clientDialog.siret}</Label>
                             <Input id="siret" value={form.siret}
                                 onChange={e => set('siret')(e.target.value)}
                                 placeholder="812 345 678 00019" />
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="vatNumber">N° TVA</Label>
+                            <Label htmlFor="vatNumber">{t.clientDialog.vatNumber}</Label>
                             <Input id="vatNumber" value={form.vatNumber}
                                 onChange={e => set('vatNumber')(e.target.value)}
                                 placeholder="FR12812345678" />
                         </div>
 
                         <div className="grid gap-2">
-                            <Label htmlFor="contactName">Contact principal</Label>
+                            <Label htmlFor="contactName">{t.clientDialog.contactName}</Label>
                             <Input id="contactName" value={form.contactName}
                                 onChange={e => set('contactName')(e.target.value)}
                                 placeholder="Camille Rousseau" />
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="phone">Téléphone</Label>
+                            <Label htmlFor="phone">{t.clientDialog.phone}</Label>
                             <Input id="phone" value={form.phone}
                                 onChange={e => set('phone')(e.target.value)}
                                 placeholder="+33 1 69 21 00 00" />
                         </div>
 
                         <div className="grid gap-2 sm:col-span-2">
-                            <Label htmlFor="email">E-mail</Label>
+                            <Label htmlFor="email">{t.clientDialog.email}</Label>
                             <Input id="email" type="email" value={form.email}
                                 onChange={e => set('email')(e.target.value)}
                                 placeholder="contact@transports-bernard.fr" />
                         </div>
 
                         <div className="grid gap-2 sm:col-span-2">
-                            <Label htmlFor="addressLine">Adresse</Label>
+                            <Label htmlFor="addressLine">{t.clientDialog.address}</Label>
                             <Input id="addressLine" value={form.addressLine}
                                 onChange={e => set('addressLine')(e.target.value)}
                                 placeholder="28 Avenue Paul Langevin" />
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="postalCode">Code postal</Label>
+                            <Label htmlFor="postalCode">{t.clientDialog.postalCode}</Label>
                             <Input id="postalCode" value={form.postalCode}
                                 onChange={e => set('postalCode')(e.target.value)}
                                 placeholder="91130" />
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="city">Ville</Label>
+                            <Label htmlFor="city">{t.clientDialog.city}</Label>
                             <Input id="city" value={form.city}
                                 onChange={e => set('city')(e.target.value)}
                                 placeholder="Ris-Orangis" />
                         </div>
 
                         <div className="grid gap-2">
-                            <Label htmlFor="status">Statut</Label>
+                            <Label htmlFor="status">{t.clientDialog.status}</Label>
                             <Select value={form.status} onValueChange={set('status')}>
                                 <SelectTrigger id="status"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     {CLIENT_STATUSES.map(s => (
-                                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                                        <SelectItem key={s} value={s}>{t.crm.clientStatus[s] ?? s}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="paymentTerms">Conditions de règlement</Label>
+                            <Label htmlFor="paymentTerms">{t.clientDialog.paymentTerms}</Label>
                             <Input id="paymentTerms" value={form.paymentTerms}
                                 onChange={e => set('paymentTerms')(e.target.value)}
                                 placeholder="30 jours fin de mois" />
                         </div>
 
                         <div className="grid gap-2 sm:col-span-2">
-                            <Label htmlFor="accountManagerId">Chargé de compte</Label>
+                            <Label htmlFor="accountManagerId">{t.clientDialog.accountManager}</Label>
                             <Select
                                 value={form.accountManagerId}
                                 onValueChange={set('accountManagerId')}
                             >
                                 <SelectTrigger id="accountManagerId">
-                                    <SelectValue placeholder="Non attribué" />
+                                    <SelectValue placeholder={t.clientDialog.noManager} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value={NO_MANAGER}>Non attribué</SelectItem>
+                                    <SelectItem value={NO_MANAGER}>{t.clientDialog.noManager}</SelectItem>
                                     {staff.map(s => (
                                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                                     ))}
@@ -234,7 +236,7 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
                     </div>
 
                     <div className="space-y-3">
-                        <Label>Services ULS souscrits</Label>
+                        <Label>{t.clientDialog.services}</Label>
                         <div className="grid gap-2 sm:grid-cols-2">
                             {SERVICE_OPTIONS.map(opt => {
                                 const checked = services.includes(opt.value);
@@ -280,36 +282,35 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
                         />
                         <span className="text-sm">
                             <span className="font-medium text-ink-950">
-                                Notifications automatiques
+                                {t.clientDialog.notificationsTitle}
                             </span>
                             <span className="mt-0.5 block text-xs text-slate-500">
-                                Prévenir ce client par e-mail / WhatsApp à chaque étape de ses
-                                expéditions, avec le compte d&apos;envoi d&apos;ULS Transport.
+                                {t.clientDialog.notificationsHint}
                             </span>
                         </span>
                     </label>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="notes">Notes</Label>
+                        <Label htmlFor="notes">{t.clientDialog.notes}</Label>
                         <textarea
                             id="notes"
                             value={form.notes}
                             onChange={e => set('notes')(e.target.value)}
                             rows={3}
                             className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-ink-950 focus:ring-2 focus:ring-ink-950/10"
-                            placeholder="Contraintes d'accès, horaires de quai, matériel requis…"
+                            placeholder={t.clientDialog.notesPlaceholder}
                         />
                     </div>
 
                     <DialogFooter>
                         <Button type="button" variant="outline"
                             onClick={() => onOpenChange(false)} disabled={saving}>
-                            Annuler
+                            {t.common.cancel}
                         </Button>
                         <Button type="submit" disabled={saving}
                             className="bg-brand-500 text-ink-950 hover:bg-brand-400">
                             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {isEdit ? 'Enregistrer' : 'Créer le client'}
+                            {isEdit ? t.common.save : t.clientDialog.submitCreate}
                         </Button>
                     </DialogFooter>
                 </form>

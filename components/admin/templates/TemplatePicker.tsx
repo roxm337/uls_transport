@@ -7,6 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { FileText, Check, Star, Eye, Loader2, Sparkles, Mail, MessageCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/lib/i18n/context';
 import { templateCategoryLabel } from '@/lib/crm';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -35,6 +36,7 @@ interface TemplatePickerProps {
 }
 
 export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePickerProps) {
+    const { t } = useLanguage();
     const [open, setOpen] = useState(false);
     const [templates, setTemplates] = useState<MessageTemplate[]>([]);
     const [loading, setLoading] = useState(false);
@@ -127,7 +129,7 @@ export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePi
                             </Button>
                         </PopoverTrigger>
                     </TooltipTrigger>
-                    <TooltipContent>Load a message template</TooltipContent>
+                    <TooltipContent>{t.messaging.ui.loadTemplate}</TooltipContent>
                 </Tooltip>
                 <PopoverContent className="w-[420px] p-0" align="end" sideOffset={8}>
                     <div className="flex">
@@ -142,19 +144,19 @@ export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePi
                                     )}
                                     <span className="text-sm font-medium capitalize">{type} Templates</span>
                                 </div>
-                                <CommandInput placeholder="Search templates..." className="h-10" />
+                                <CommandInput placeholder={t.messaging.ui.searchTemplates} className="h-10" />
                                 <CommandList className="max-h-[320px]">
                                     <CommandEmpty className="py-6 text-center">
                                         {loading ? (
                                             <div className="flex flex-col items-center gap-2">
                                                 <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-                                                <span className="text-sm text-slate-500">Loading templates...</span>
+                                                <span className="text-sm text-slate-500">{t.messaging.ui.loadingTemplates}</span>
                                             </div>
                                         ) : (
                                             <div className="flex flex-col items-center gap-2">
                                                 <FileText className="h-8 w-8 text-slate-300" />
-                                                <span className="text-sm text-slate-500">No templates found</span>
-                                                <span className="text-xs text-slate-400">Create templates in the Templates tab</span>
+                                                <span className="text-sm text-slate-500">{t.messaging.ui.noTemplates}</span>
+                                                <span className="text-xs text-slate-400">{t.messaging.ui.createTemplatesHint}</span>
                                             </div>
                                         )}
                                     </CommandEmpty>
@@ -224,11 +226,11 @@ export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePi
                                     <div className="p-3 h-full bg-slate-50/50">
                                         <div className="flex items-center gap-1.5 mb-2">
                                             <Eye className="h-3 w-3 text-slate-400" />
-                                            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Preview</span>
+                                            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">{t.messaging.ui.preview}</span>
                                         </div>
                                         {type === 'email' && hoveredTemplate.subject && (
                                             <div className="mb-2">
-                                                <p className="text-[10px] text-slate-400 uppercase tracking-wider">Subject</p>
+                                                <p className="text-[10px] text-slate-400 uppercase tracking-wider">{t.messaging.ui.subject}</p>
                                                 <p className="text-xs font-medium text-slate-700 truncate">{hoveredTemplate.subject}</p>
                                             </div>
                                         )}

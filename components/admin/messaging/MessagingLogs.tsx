@@ -237,7 +237,7 @@ export function MessagingLogs() {
                                             Export
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Export to CSV</TooltipContent>
+                                    <TooltipContent>{t.messaging.ui.exportCsv}</TooltipContent>
                                 </Tooltip>
                                 <Button
                                     variant="outline"
@@ -256,7 +256,7 @@ export function MessagingLogs() {
                             <div className="relative flex-1 min-w-[200px]">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                                 <Input
-                                    placeholder="Search logs..."
+                                    placeholder={t.messaging.ui.searchLogs}
                                     value={searchQuery}
                                     onChange={(e) => {
                                         setSearchQuery(e.target.value);
@@ -269,10 +269,10 @@ export function MessagingLogs() {
                                 <Filter className="h-4 w-4 text-slate-500" />
                                 <Select value={channelFilter} onValueChange={(v) => { setChannelFilter(v); setCurrentPage(1); }}>
                                     <SelectTrigger className="w-[130px] h-9">
-                                        <SelectValue placeholder="Channel" />
+                                        <SelectValue placeholder={t.messaging.ui.channel} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">All Channels</SelectItem>
+                                        <SelectItem value="all">{t.messaging.ui.allChannels}</SelectItem>
                                         <SelectItem value="email">
                                             <span className="flex items-center gap-2">
                                                 <Mail className="h-3 w-3 text-blue-500" />
@@ -290,10 +290,10 @@ export function MessagingLogs() {
                             </div>
                             <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}>
                                 <SelectTrigger className="w-[130px] h-9">
-                                    <SelectValue placeholder="Status" />
+                                    <SelectValue placeholder={t.messaging.ui.status} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Status</SelectItem>
+                                    <SelectItem value="all">{t.messaging.ui.allStatuses}</SelectItem>
                                     <SelectItem value="sent">
                                         <span className="flex items-center gap-2">
                                             <CheckCircle2 className="h-3 w-3 text-green-500" />
@@ -339,7 +339,7 @@ export function MessagingLogs() {
                                                     <Inbox className="h-12 w-12 text-slate-300" />
                                                     <div>
                                                         <p className="font-medium">{t.messaging.logs.noLogs}</p>
-                                                        <p className="text-sm text-slate-400">Messages you send will appear here</p>
+                                                        <p className="text-sm text-slate-400">{t.messaging.ui.logsEmpty}</p>
                                                     </div>
                                                 </div>
                                             </TableCell>
@@ -374,7 +374,7 @@ export function MessagingLogs() {
                                                     </TableCell>
                                                     <TableCell>
                                                         <span className="text-slate-600 truncate max-w-[200px] block">
-                                                            {log.subject || <span className="text-slate-400 italic">No subject</span>}
+                                                            {log.subject || <span className="text-slate-400 italic">{t.messaging.ui.noSubject}</span>}
                                                         </span>
                                                     </TableCell>
                                                     <TableCell>
@@ -470,7 +470,7 @@ export function MessagingLogs() {
                             >
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1">
-                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Channel</span>
+                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t.messaging.ui.channel}</span>
                                         <div className="flex items-center gap-2">
                                             {selectedLog.channel === 'email' ? (
                                                 <Mail className="h-4 w-4 text-blue-500" />
@@ -481,11 +481,11 @@ export function MessagingLogs() {
                                         </div>
                                     </div>
                                     <div className="space-y-1">
-                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Recipient</span>
+                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t.messaging.ui.recipient}</span>
                                         <p className="text-sm font-medium">{selectedLog.recipient}</p>
                                     </div>
                                     <div className="space-y-1">
-                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</span>
+                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t.messaging.ui.status}</span>
                                         {selectedLog.status === 'sent' ? (
                                             <Badge className="bg-green-100 text-green-700 border-none">
                                                 <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -499,25 +499,25 @@ export function MessagingLogs() {
                                         )}
                                     </div>
                                     <div className="space-y-1">
-                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</span>
+                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t.messaging.ui.date}</span>
                                         <p className="text-sm font-medium">
                                             {format(new Date(selectedLog.createdAt), 'MMM d, yyyy HH:mm:ss')}
                                         </p>
                                     </div>
                                     <div className="space-y-1 col-span-2">
-                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Subject</span>
+                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t.messaging.ui.subject}</span>
                                         <p className="text-sm font-medium">{selectedLog.subject || 'N/A'}</p>
                                     </div>
                                 </div>
                                 <div className="space-y-1">
-                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Message Content</span>
+                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t.messaging.ui.messageContent}</span>
                                     <div className="p-4 bg-slate-50 rounded-lg border text-sm max-h-[200px] overflow-y-auto whitespace-pre-wrap">
                                         {selectedLog.message}
                                     </div>
                                 </div>
                                 {selectedLog.error && (
                                     <div className="space-y-1">
-                                        <span className="text-xs font-semibold text-red-500 uppercase tracking-wider">Error Message</span>
+                                        <span className="text-xs font-semibold text-red-500 uppercase tracking-wider">{t.messaging.ui.errorMessage}</span>
                                         <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">
                                             {selectedLog.error}
                                         </p>
@@ -525,7 +525,7 @@ export function MessagingLogs() {
                                 )}
                                 {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && (
                                     <div className="space-y-1">
-                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Provider Metadata</span>
+                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t.messaging.ui.providerMetadata}</span>
                                         <div className="p-3 bg-slate-100 rounded-lg text-[11px] font-mono overflow-x-auto">
                                             <pre>{JSON.stringify(selectedLog.metadata, null, 2)}</pre>
                                         </div>

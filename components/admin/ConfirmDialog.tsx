@@ -12,6 +12,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { useLanguage } from '@/lib/i18n/context';
 
 interface ConfirmDialogProps {
     open: boolean;
@@ -40,11 +41,12 @@ export function ConfirmDialog({
     onOpenChange,
     title,
     description,
-    confirmLabel = 'Confirmer',
-    cancelLabel = 'Annuler',
+    confirmLabel,
+    cancelLabel,
     destructive = true,
     onConfirm,
 }: ConfirmDialogProps) {
+    const { t } = useLanguage();
     const [pending, setPending] = React.useState(false);
 
     async function handleConfirm(event: React.MouseEvent) {
@@ -70,14 +72,14 @@ export function ConfirmDialog({
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel disabled={pending}>{cancelLabel}</AlertDialogCancel>
+                    <AlertDialogCancel disabled={pending}>{cancelLabel ?? t.common.cancel}</AlertDialogCancel>
                     <AlertDialogAction
                         onClick={handleConfirm}
                         disabled={pending}
                         className={destructive ? 'bg-red-600 text-white hover:bg-red-700' : ''}
                     >
                         {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {confirmLabel}
+                        {confirmLabel ?? t.common.confirm}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

@@ -13,6 +13,7 @@ import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { formatEuros } from '@/lib/crm';
+import { useLanguage } from '@/lib/i18n/context';
 
 interface Analytics {
     kpis: {
@@ -38,6 +39,7 @@ const SERVICE_COLORS = [
 ];
 
 export default function AnalyticsPage() {
+    const { t } = useLanguage();
     const [data, setData] = React.useState<Analytics | null>(null);
     const [loading, setLoading] = React.useState(true);
 
@@ -52,18 +54,18 @@ export default function AnalyticsPage() {
     const k = data?.kpis;
 
     const cards = [
-        { label: 'Clients actifs', value: k ? `${k.activeClients} / ${k.totalClients}` : undefined, icon: Building2 },
-        { label: 'Expéditions en cours', value: k?.activeExpeditions, icon: Package },
-        { label: 'Livrées ce mois', value: k?.deliveredThisMonth, icon: CheckCircle2 },
-        { label: 'CA livré ce mois', value: k ? formatEuros(k.revenueThisMonth) : undefined, icon: Euro },
+        { label: t.analytics.activeClients, value: k ? `${k.activeClients} / ${k.totalClients}` : undefined, icon: Building2 },
+        { label: t.analytics.activeExpeditions, value: k?.activeExpeditions, icon: Package },
+        { label: t.analytics.deliveredThisMonth, value: k?.deliveredThisMonth, icon: CheckCircle2 },
+        { label: t.analytics.revenueThisMonth, value: k ? formatEuros(k.revenueThisMonth, t.locale) : undefined, icon: Euro },
     ];
 
     return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             <div>
-                <h1 className="text-2xl font-black tracking-tight text-ink-950">Analytique</h1>
+                <h1 className="text-2xl font-black tracking-tight text-ink-950">{t.analytics.title}</h1>
                 <p className="text-sm text-slate-500">
-                    Volumes transportés, mix de services et chiffre d&apos;affaires.
+                    {t.analytics.subtitle}
                 </p>
             </div>
 
@@ -89,7 +91,7 @@ export default function AnalyticsPage() {
 
             <Card className="border-slate-200">
                 <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Volume et chiffre d&apos;affaires</CardTitle>
+                    <CardTitle className="text-base">{t.analytics.volumeAndRevenue}</CardTitle>
                 </CardHeader>
                 <CardContent className="h-[320px]">
                     {data && data.charts.monthly.length > 0 ? (
@@ -106,14 +108,14 @@ export default function AnalyticsPage() {
                                     cursor={{ fill: 'rgba(253,231,24,0.12)' }}
                                     contentStyle={{ borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 12 }}
                                     formatter={(value, name) =>
-                                        name === 'CA livré (HT)'
-                                            ? formatEuros(Number(value))
+                                        name === t.analytics.revenueSeries
+                                            ? formatEuros(Number(value), t.locale)
                                             : String(value)}
                                 />
                                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                                <Bar yAxisId="left" dataKey="expeditions" name="Expéditions"
+                                <Bar yAxisId="left" dataKey="expeditions" name={t.analytics.expeditionsSeries}
                                     fill="#fde718" stroke="#0a0a0a" strokeWidth={1} radius={[6, 6, 0, 0]} />
-                                <Line yAxisId="right" type="monotone" dataKey="revenue" name="CA livré (HT)"
+                                <Line yAxisId="right" type="monotone" dataKey="revenue" name={t.analytics.revenueSeries}
                                     stroke="#0a0a0a" strokeWidth={2} dot={{ r: 3 }} />
                             </ComposedChart>
                         </ResponsiveContainer>
@@ -126,7 +128,7 @@ export default function AnalyticsPage() {
             <div className="grid gap-6 lg:grid-cols-2">
                 <Card className="border-slate-200">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Répartition par service</CardTitle>
+                        <CardTitle className="text-base">{t.analytics.byService}</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[300px]">
                         {data && data.charts.byService.length > 0 ? (
@@ -152,7 +154,7 @@ export default function AnalyticsPage() {
 
                 <Card className="border-slate-200">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Principaux clients</CardTitle>
+                        <CardTitle className="text-base">{t.analytics.topClients}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         {data && data.charts.topClients.length > 0 ? (
@@ -160,9 +162,9 @@ export default function AnalyticsPage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="bg-slate-50">
-                                            <TableHead>Client</TableHead>
-                                            <TableHead className="text-center">Expéditions</TableHead>
-                                            <TableHead className="text-right">CA livré</TableHead>
+                                            <TableHead>{t.analytics.tableClient}</TableHead>
+                                            <TableHead className="text-center">{t.analytics.tableExpeditions}</TableHead>
+                                            <TableHead className="text-right">{t.analytics.tableRevenue}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -178,7 +180,7 @@ export default function AnalyticsPage() {
                                                     {c.expeditions}
                                                 </TableCell>
                                                 <TableCell className="text-right text-sm">
-                                                    {formatEuros(c.revenue)}
+                                                    {formatEuros(c.revenue, t.locale)}
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -187,7 +189,7 @@ export default function AnalyticsPage() {
                             </div>
                         ) : (
                             <p className="py-12 text-center text-sm text-slate-500">
-                                {loading ? 'Chargement…' : 'Aucune expédition enregistrée.'}
+                                {loading ? t.common.loading : t.analytics.noExpeditions}
                             </p>
                         )}
                     </CardContent>
@@ -198,10 +200,12 @@ export default function AnalyticsPage() {
 }
 
 function Empty({ loading }: { loading: boolean }) {
+    const { t } = useLanguage();
+
     return (
         <div className="flex h-full items-center justify-center">
             <p className="text-sm text-slate-500">
-                {loading ? 'Chargement…' : 'Pas encore de données.'}
+                {loading ? t.common.loading : t.common.noData}
             </p>
         </div>
     );

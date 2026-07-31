@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Spinner } from '@/components/ui/spinner';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { BRAND } from '@/lib/brand';
 
 export default function LoginPage() {
@@ -40,23 +41,25 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="flex flex-col lg:flex-row min-h-dvh lg:h-dvh lg:overflow-hidden bg-[#f8f9fa] font-sans selection:bg-brand-500/40">
+        <div className="flex min-h-dvh flex-col bg-[#f4f5f2] font-sans selection:bg-brand-500/40 lg:h-dvh lg:flex-row lg:overflow-hidden">
 
             {/* Left Column */}
-            <div className="w-full lg:w-[45%] bg-ink-950 flex flex-col justify-center px-6 pt-10 pb-16 lg:p-8 text-white relative overflow-hidden">
+            <div className="route-grid relative flex w-full flex-col justify-center overflow-hidden bg-ink-950 px-6 pb-16 pt-10 text-white lg:w-[46%] lg:p-10">
 
                 <div className="absolute inset-0 pointer-events-none">
                     <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[60%] bg-white/10 blur-[60px] rounded-full lg:hidden"></div>
                     <div className="absolute top-[-15%] right-[-5%] w-[45%] h-[45%] bg-white/[0.07] blur-[80px] rounded-full hidden lg:block"></div>
                     <div className="absolute bottom-[-10%] left-[-8%] w-[40%] h-[40%] bg-white/[0.05] blur-[70px] rounded-full hidden lg:block"></div>
                 </div>
+                <div className="route-dashes absolute inset-x-0 bottom-0 h-1" />
 
                 <div className="relative z-10 w-full max-w-lg mx-auto text-center lg:text-left">
-                    <Link href="/" className="inline-flex items-center mb-5 lg:mb-6 rounded-xl bg-white p-2.5 hover:opacity-90 transition-opacity">
-                        <img src={BRAND.logo} alt={`${BRAND.name} logo`} className="h-10 lg:h-12 w-auto" />
+                    <Link href="/" className="mb-7 inline-flex items-center rounded-xl bg-brand-500 px-3 py-2 shadow-[0_12px_34px_rgba(253,231,24,.18)] transition-transform hover:-translate-y-0.5">
+                        <Image src={BRAND.logo} alt={`${BRAND.name} logo`} width={404} height={282} priority className="h-10 w-auto object-contain lg:h-12" />
                     </Link>
 
-                    <h1 className="text-3xl lg:text-[2.2rem] leading-[1.15] font-extrabold tracking-tight mb-2 lg:mb-3">
+                    <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-500">Centre de pilotage</p>
+                    <h1 className="mb-3 text-3xl font-bold leading-[1.08] tracking-[-0.035em] lg:text-[2.75rem]">
                         Pilotez vos transports depuis un seul espace.
                     </h1>
                     <p className="text-white/70 text-sm lg:text-base leading-relaxed mb-4 lg:mb-5 max-w-md mx-auto lg:mx-0">
@@ -64,7 +67,7 @@ export default function LoginPage() {
                         avec l&apos;exploitation {BRAND.name} — en temps réel, 24/7.
                     </p>
 
-                    <div className="hidden lg:block bg-white/10 backdrop-blur-md border border-white/10 rounded-xl p-4">
+                    <div className="hidden rounded-2xl border border-white/10 bg-white/[0.055] p-5 backdrop-blur-md lg:block">
                         <div className="flex gap-3 mb-4">
                             <div className="w-9 h-9 rounded-full bg-brand-500 text-ink-950 flex items-center justify-center shrink-0">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
@@ -95,30 +98,32 @@ export default function LoginPage() {
             </div>
 
             {/* Right Column */}
-            <div className="w-full lg:w-[55%] flex flex-col items-center justify-center px-6 py-8 sm:px-10 lg:px-14 bg-[#f8f9fa] mt-[-2rem] lg:mt-0 rounded-t-3xl lg:rounded-none relative z-20 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.15)] lg:shadow-none lg:overflow-y-auto">
+            <div className="relative z-20 mt-[-2rem] flex w-full flex-col items-center justify-center rounded-t-[2rem] bg-[#f4f5f2] px-6 py-9 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.15)] sm:px-10 lg:mt-0 lg:w-[54%] lg:overflow-y-auto lg:rounded-none lg:px-14 lg:shadow-none">
 
                 <div className="w-full max-w-[460px] animate-form-in">
                     <div className="w-10 h-1 bg-zinc-200 rounded-full mx-auto mb-6 lg:hidden"></div>
 
-                    <div className="mb-6 text-center lg:text-left">
+                    <div className="mb-7 text-center lg:text-left">
 
-                        <h2 className="text-2xl lg:text-3xl font-bold text-zinc-900 tracking-tight mb-1">Ravi de vous revoir</h2>
-                        <p className="text-base text-zinc-500">Connectez-vous à votre compte pour continuer</p>
+                        <h2 className="mb-1 text-2xl font-bold tracking-[-0.025em] text-zinc-900 lg:text-3xl">Ravi de vous revoir</h2>
+                        <p className="text-sm text-zinc-500">Accédez à votre espace d&apos;exploitation sécurisé.</p>
                     </div>
 
                     <form onSubmit={handleLogin} className="space-y-4">
                         <div className="space-y-1.5">
-                            <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">E-mail</label>
+                            <label htmlFor="email" className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">E-mail</label>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                     <Mail className="h-[18px] w-[18px] text-zinc-400" />
                                 </div>
                                 <input
                                     type="email"
+                                    id="email"
+                                    autoComplete="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    className="block w-full pl-10 pr-4 py-3 bg-white border border-zinc-200 rounded-xl hover:border-zinc-300 focus:ring-2 focus:ring-ink-950/15 focus:border-ink-950 focus:shadow-[0_0_0_4px_rgba(10,10,10,0.06)] transition-all duration-200 outline-none text-zinc-900 placeholder:text-zinc-400 text-base"
+                                    className="block w-full rounded-xl border border-zinc-200 bg-white py-3 pl-10 pr-4 text-base text-zinc-900 shadow-[0_1px_2px_rgba(0,0,0,.025)] outline-none transition-all duration-200 placeholder:text-zinc-400 hover:border-zinc-300 focus:border-ink-950 focus:ring-4 focus:ring-brand-500/20"
                                     placeholder="vous@entreprise.fr"
                                 />
                             </div>
@@ -126,7 +131,7 @@ export default function LoginPage() {
 
                         <div className="space-y-1.5">
                             <div className="flex justify-between items-center">
-                                <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Mot de passe</label>
+                                <label htmlFor="password" className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Mot de passe</label>
                             </div>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
@@ -134,13 +139,15 @@ export default function LoginPage() {
                                 </div>
                                 <input
                                     type={showPassword ? 'text' : 'password'}
+                                    id="password"
+                                    autoComplete="current-password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
-                                    className="block w-full pl-10 pr-11 py-3 bg-white border border-zinc-200 rounded-xl hover:border-zinc-300 focus:ring-2 focus:ring-ink-950/15 focus:border-ink-950 focus:shadow-[0_0_0_4px_rgba(10,10,10,0.06)] transition-all duration-200 outline-none text-zinc-900 placeholder:text-zinc-400 text-base"
+                                    className="block w-full rounded-xl border border-zinc-200 bg-white py-3 pl-10 pr-11 text-base text-zinc-900 shadow-[0_1px_2px_rgba(0,0,0,.025)] outline-none transition-all duration-200 placeholder:text-zinc-400 hover:border-zinc-300 focus:border-ink-950 focus:ring-4 focus:ring-brand-500/20"
                                     placeholder="••••••••"
                                 />
-                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-zinc-400 hover:text-zinc-600 transition-colors focus:outline-none">
+                                <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'} className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-zinc-400 transition-colors hover:text-zinc-600 focus:outline-none">
                                     {showPassword ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
                                 </button>
                             </div>

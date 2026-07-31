@@ -32,8 +32,10 @@ import {
     type Client, type ClientContact,
 } from '@/lib/services/clients';
 import { useAdminRole } from '@/components/admin/AdminLayoutClient';
+import { useLanguage } from '@/lib/i18n/context';
 
 export default function ClientDetailPage() {
+    const { t } = useLanguage();
     const { id } = useParams<{ id: string }>();
     const router = useRouter();
     const role = useAdminRole();
@@ -52,7 +54,7 @@ export default function ClientDetailPage() {
         try {
             setClient(await fetchClient(id));
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Client introuvable.');
+            toast.error(error instanceof Error ? error.message : t.clientDetail.notFound);
         } finally {
             setLoading(false);
         }
@@ -64,10 +66,10 @@ export default function ClientDetailPage() {
         setDeleting(true);
         try {
             await deleteClient(id);
-            toast.success('Client supprimé.');
+            toast.success(t.clientDetail.clientDeleted);
             router.push('/admin/clients');
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Suppression impossible.');
+            toast.error(error instanceof Error ? error.message : t.clients.deleteFailed);
             setDeleting(false);
         }
     }
@@ -75,10 +77,10 @@ export default function ClientDetailPage() {
     async function handleDeleteContact(contact: ClientContact) {
         try {
             await deleteContact(contact.id);
-            toast.success('Contact supprimé.');
+            toast.success(t.clientDetail.contactDeleted);
             void load();
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Suppression impossible.');
+            toast.error(error instanceof Error ? error.message : t.clients.deleteFailed);
         }
     }
 
@@ -94,9 +96,9 @@ export default function ClientDetailPage() {
         return (
             <div className="space-y-4">
                 <Link href="/admin/clients" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-ink-950">
-                    <ArrowLeft className="h-4 w-4" /> Retour aux clients
+                    <ArrowLeft className="h-4 w-4" /> {t.clientDetail.back}
                 </Link>
-                <p className="text-sm text-slate-500">Ce client n&apos;existe pas ou a été supprimé.</p>
+                <p className="text-sm text-slate-500">{t.clientDetail.missing}</p>
             </div>
         );
     }
@@ -112,7 +114,7 @@ export default function ClientDetailPage() {
     return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             <Link href="/admin/clients" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-ink-950">
-                <ArrowLeft className="h-4 w-4" /> Retour aux clients
+                <ArrowLeft className="h-4 w-4" /> {t.clientDetail.back}
             </Link>
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -126,7 +128,7 @@ export default function ClientDetailPage() {
                         </h1>
                         <div className="mt-1 flex flex-wrap items-center gap-2">
                             <Badge variant="outline" className={CLIENT_STATUS_STYLES[client.status] ?? ''}>
-                                {client.status}
+                                {t.crm.clientStatus[client.status] ?? client.status}
                             </Badge>
                             {/* Whether ULS writes to this client automatically.
                                 Worth seeing without opening the form: it is the
@@ -139,8 +141,8 @@ export default function ClientDetailPage() {
                                     : 'gap-1 border-slate-200 bg-slate-50 text-slate-500'}
                             >
                                 {client.notificationsEnabled
-                                    ? <><BellRing className="h-3 w-3" /> Notifications activées</>
-                                    : <><BellOff className="h-3 w-3" /> Notifications désactivées</>}
+                                    ? <><BellRing className="h-3 w-3" /> {t.clientDetail.notificationsOn}</>
+                                    : <><BellOff className="h-3 w-3" /> {t.clientDetail.notificationsOff}</>}
                             </Badge>
                             {client.siret && (
                                 <span className="text-xs font-mono text-slate-400">SIRET {client.siret}</span>
@@ -151,13 +153,13 @@ export default function ClientDetailPage() {
 
                 <div className="flex gap-2 shrink-0">
                     <Button variant="outline" className="gap-2" onClick={() => setEditOpen(true)}>
-                        <Pencil className="h-4 w-4" /> Modifier
+                        <Pencil className="h-4 w-4" /> {t.common.edit}
                     </Button>
                     {isAdmin && (
                         <Button variant="outline" onClick={() => setConfirmDelete(true)} disabled={deleting}
                             className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700">
                             {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash className="h-4 w-4" />}
-                            Supprimer
+                            {t.common.delete}
                         </Button>
                     )}
                 </div>
@@ -167,23 +169,23 @@ export default function ClientDetailPage() {
                 {/* Coordinates */}
                 <Card className="border-slate-200 lg:col-span-1">
                     <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Coordonnées</CardTitle>
+                        <CardTitle className="text-base">{t.clientDetail.coordinates}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3 text-sm">
-                        <Row icon={Building2} label="Contact" value={client.contactName} />
-                        <Row icon={Mail} label="E-mail" value={client.email} href={client.email ? `mailto:${client.email}` : undefined} />
-                        <Row icon={Phone} label="Téléphone" value={client.phone} href={client.phone ? `tel:${client.phone.replace(/\s/g, '')}` : undefined} />
+                        <Row icon={Building2} label={t.clientDetail.contact} value={client.contactName} />
+                        <Row icon={Mail} label={t.clientDetail.email} value={client.email} href={client.email ? `mailto:${client.email}` : undefined} />
+                        <Row icon={Phone} label={t.clientDetail.phone} value={client.phone} href={client.phone ? `tel:${client.phone.replace(/\s/g, '')}` : undefined} />
                         <Row
                             icon={MapPin}
-                            label="Adresse"
+                            label={t.clientDetail.address}
                             value={[client.addressLine, [client.postalCode, client.city].filter(Boolean).join(' '), client.country]
                                 .filter(Boolean).join(', ') || null}
                         />
-                        <Row icon={FileText} label="Règlement" value={client.paymentTerms} />
-                        {client.vatNumber && <Row icon={FileText} label="N° TVA" value={client.vatNumber} />}
+                        <Row icon={FileText} label={t.clientDetail.paymentTerms} value={client.paymentTerms} />
+                        {client.vatNumber && <Row icon={FileText} label={t.clientDetail.vatNumber} value={client.vatNumber} />}
                         <Row
                             icon={UserRound}
-                            label="Chargé de compte"
+                            label={t.clientDetail.accountManager}
                             value={client.accountManager?.name ?? null}
                         />
                     </CardContent>
@@ -192,11 +194,11 @@ export default function ClientDetailPage() {
                 {/* Services */}
                 <Card className="border-slate-200 lg:col-span-2">
                     <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Services ULS souscrits</CardTitle>
+                        <CardTitle className="text-base">{t.clientDetail.services}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         {services.length === 0 ? (
-                            <p className="text-sm text-slate-500">Aucun service renseigné.</p>
+                            <p className="text-sm text-slate-500">{t.clientDetail.noServices}</p>
                         ) : (
                             <div className="flex flex-wrap gap-2">
                                 {services.map(s => (
@@ -211,7 +213,7 @@ export default function ClientDetailPage() {
                         {client.notes && (
                             <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-3">
                                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
-                                    Notes
+                                    {t.clientDetail.notes}
                                 </p>
                                 <p className="whitespace-pre-wrap text-sm text-slate-700">{client.notes}</p>
                             </div>
@@ -223,14 +225,14 @@ export default function ClientDetailPage() {
             {/* Contacts */}
             <Card className="border-slate-200">
                 <CardHeader className="flex flex-row items-center justify-between pb-3">
-                    <CardTitle className="text-base">Contacts ({contacts.length})</CardTitle>
+                    <CardTitle className="text-base">{t.clientDetail.contacts(contacts.length)}</CardTitle>
                     <Button size="sm" variant="outline" className="gap-2" onClick={() => setContactOpen(true)}>
-                        <Plus className="h-4 w-4" /> Ajouter
+                        <Plus className="h-4 w-4" /> {t.common.add}
                     </Button>
                 </CardHeader>
                 <CardContent>
                     {contacts.length === 0 ? (
-                        <p className="text-sm text-slate-500">Aucun contact enregistré.</p>
+                        <p className="text-sm text-slate-500">{t.clientDetail.noContacts}</p>
                     ) : (
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                             {contacts.map(c => (
@@ -246,7 +248,7 @@ export default function ClientDetailPage() {
                                         <button
                                             onClick={() => setContactToDelete(c)}
                                             className="shrink-0 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                                            aria-label={`Supprimer ${c.name}`}
+                                            aria-label={`${t.common.delete} ${c.name}`}
                                         >
                                             <Trash className="h-3.5 w-3.5" />
                                         </button>
@@ -267,24 +269,24 @@ export default function ClientDetailPage() {
             {/* Expeditions */}
             <Card className="border-slate-200">
                 <CardHeader className="flex flex-row items-center justify-between pb-3">
-                    <CardTitle className="text-base">Expéditions ({totalExpeditions})</CardTitle>
+                    <CardTitle className="text-base">{t.clientDetail.expeditions(totalExpeditions)}</CardTitle>
                     <Link href={`/admin/expeditions?clientId=${client.id}`}>
-                        <Button size="sm" variant="outline">Voir tout</Button>
+                        <Button size="sm" variant="outline">{t.common.seeAll}</Button>
                     </Link>
                 </CardHeader>
                 <CardContent>
                     {expeditions.length === 0 ? (
-                        <p className="text-sm text-slate-500">Aucune expédition pour ce client.</p>
+                        <p className="text-sm text-slate-500">{t.clientDetail.noExpeditions}</p>
                     ) : (
                         <div className="rounded-lg border border-slate-200 overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow className="bg-slate-50">
-                                        <TableHead>Référence</TableHead>
-                                        <TableHead>Service</TableHead>
-                                        <TableHead>Trajet</TableHead>
-                                        <TableHead>Statut</TableHead>
-                                        <TableHead className="text-right">Prix HT</TableHead>
+                                        <TableHead>{t.expeditions.table.reference}</TableHead>
+                                        <TableHead>{t.expeditions.table.service}</TableHead>
+                                        <TableHead>{t.expeditions.table.route}</TableHead>
+                                        <TableHead>{t.expeditions.table.status}</TableHead>
+                                        <TableHead className="text-right">{t.expeditions.table.price}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -302,11 +304,11 @@ export default function ClientDetailPage() {
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant="outline" className={EXPEDITION_STATUS_STYLES[e.status] ?? ''}>
-                                                    {expeditionStatusLabel(e.status)}
+                                                    {t.crm.expeditionStatus[e.status] ?? e.status}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-right text-sm font-medium">
-                                                {formatEuros(e.priceHt)}
+                                                {formatEuros(e.priceHt, t.locale)}
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -316,9 +318,9 @@ export default function ClientDetailPage() {
                     )}
                     {truncated && (
                         <p className="mt-3 text-xs text-slate-500">
-                            Les {expeditions.length} plus récentes sur {totalExpeditions}.{' '}
+                            {t.clientDetail.truncated(expeditions.length, totalExpeditions)}{' '}
                             <Link href={`/admin/expeditions?clientId=${client.id}`} className="underline">
-                                Voir toutes les expéditions
+                                {t.clientDetail.seeAllExpeditions}
                             </Link>
                         </p>
                     )}
@@ -331,30 +333,25 @@ export default function ClientDetailPage() {
             <ConfirmDialog
                 open={confirmDelete}
                 onOpenChange={setConfirmDelete}
-                title={`Supprimer ${client.companyName} ?`}
+                title={t.clients.deleteTitle(client.companyName)}
                 description={
                     <>
-                        {totalExpeditions > 0 ? (
-                            <>
-                                Ses <strong>{totalExpeditions} expédition(s)</strong> et ses{' '}
-                                <strong>{contacts.length} contact(s)</strong> seront supprimés avec lui.
-                            </>
-                        ) : (
-                            <>Ce client n&apos;a aucune expédition enregistrée.</>
-                        )}
-                        {' '}Cette action est irréversible.
+                        {totalExpeditions > 0
+                            ? t.clients.deleteWithExpeditions(totalExpeditions)
+                            : t.clients.deleteNoExpeditions}
+                        {' '}{t.common.irreversible}
                     </>
                 }
-                confirmLabel="Supprimer le client"
+                confirmLabel={t.clients.deleteConfirm}
                 onConfirm={handleDelete}
             />
 
             <ConfirmDialog
                 open={contactToDelete !== null}
                 onOpenChange={open => { if (!open) setContactToDelete(null); }}
-                title="Supprimer ce contact ?"
-                description={<>{contactToDelete?.name} sera retiré de la fiche de {client.companyName}.</>}
-                confirmLabel="Supprimer"
+                title={t.clientDetail.deleteContactTitle}
+                description={t.clientDetail.deleteContactBody(contactToDelete?.name ?? '', client.companyName)}
+                confirmLabel={t.common.delete}
                 onConfirm={async () => {
                     if (contactToDelete) await handleDeleteContact(contactToDelete);
                     setContactToDelete(null);
@@ -391,6 +388,7 @@ function ContactDialog({ open, onOpenChange, clientId, onSaved }: {
     clientId: string;
     onSaved: () => void;
 }) {
+    const { t } = useLanguage();
     const [form, setForm] = React.useState({ name: '', role: '', email: '', phone: '' });
     const [isPrimary, setIsPrimary] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
@@ -405,17 +403,17 @@ function ContactDialog({ open, onOpenChange, clientId, onSaved }: {
     async function submit(e: React.FormEvent) {
         e.preventDefault();
         if (!form.name.trim()) {
-            toast.error('Le nom est obligatoire.');
+            toast.error(t.contactDialog.nameRequired);
             return;
         }
         setSaving(true);
         try {
             await createContact(clientId, { ...form, isPrimary });
-            toast.success('Contact ajouté.');
+            toast.success(t.contactDialog.added);
             onOpenChange(false);
             onSaved();
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Échec.');
+            toast.error(error instanceof Error ? error.message : t.contactDialog.failed);
         } finally {
             setSaving(false);
         }
@@ -424,41 +422,41 @@ function ContactDialog({ open, onOpenChange, clientId, onSaved }: {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
-                <DialogHeader><DialogTitle>Nouveau contact</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>{t.contactDialog.title}</DialogTitle></DialogHeader>
                 <form onSubmit={submit} className="space-y-4">
                     <div className="grid gap-2">
-                        <Label htmlFor="c-name">Nom *</Label>
+                        <Label htmlFor="c-name">{t.contactDialog.name} *</Label>
                         <Input id="c-name" value={form.name}
                             onChange={e => setForm({ ...form, name: e.target.value })}
                             placeholder="Camille Rousseau" required />
                     </div>
                     <div className="grid gap-2">
-                        <Label htmlFor="c-role">Fonction</Label>
+                        <Label htmlFor="c-role">{t.contactDialog.role}</Label>
                         <Input id="c-role" value={form.role}
                             onChange={e => setForm({ ...form, role: e.target.value })}
                             placeholder="Responsable logistique" />
                     </div>
                     <div className="grid gap-2">
-                        <Label htmlFor="c-email">E-mail</Label>
+                        <Label htmlFor="c-email">{t.contactDialog.email}</Label>
                         <Input id="c-email" type="email" value={form.email}
                             onChange={e => setForm({ ...form, email: e.target.value })} />
                     </div>
                     <div className="grid gap-2">
-                        <Label htmlFor="c-phone">Téléphone</Label>
+                        <Label htmlFor="c-phone">{t.contactDialog.phone}</Label>
                         <Input id="c-phone" value={form.phone}
                             onChange={e => setForm({ ...form, phone: e.target.value })} />
                     </div>
                     <label htmlFor="c-primary" className="flex items-center gap-2 text-sm cursor-pointer">
                         <Checkbox id="c-primary" checked={isPrimary}
                             onCheckedChange={v => setIsPrimary(Boolean(v))} />
-                        Contact principal
+                        {t.contactDialog.isPrimary}
                     </label>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                            Annuler
+                            {t.common.cancel}
                         </Button>
                         <Button type="submit" disabled={saving} className="bg-brand-500 text-ink-950 hover:bg-brand-400">
-                            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Ajouter
+                            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {t.common.add}
                         </Button>
                     </DialogFooter>
                 </form>

@@ -19,6 +19,7 @@ import { ClientDialog } from '@/components/admin/ClientDialog';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { RowActions } from '@/components/admin/RowActions';
 import { useAdminRole } from '@/components/admin/AdminLayoutClient';
+import { useLanguage } from '@/lib/i18n/context';
 import {
     CLIENT_STATUSES, CLIENT_STATUS_STYLES, SERVICE_OPTIONS,
     parseServices, serviceShortLabel,
@@ -32,6 +33,7 @@ import {
 const PAGE_SIZE = 25;
 
 export default function ClientsPage() {
+    const { t } = useLanguage();
     const role = useAdminRole();
     const isAdmin = role?.toUpperCase?.() === 'ADMIN';
 
@@ -57,8 +59,8 @@ export default function ClientsPage() {
         // Resetting the page alongside the debounced term keeps both in one
         // update: sequencing them separately fired a fetch for the new filter
         // against the old page number first.
-        const t = setTimeout(() => { setDebounced(search); setPage(1); }, 400);
-        return () => clearTimeout(t);
+        const timer = setTimeout(() => { setDebounced(search); setPage(1); }, 400);
+        return () => clearTimeout(timer);
     }, [search]);
 
     React.useEffect(() => {
@@ -82,7 +84,7 @@ export default function ClientsPage() {
             // Deleting the last row of the last page can strand us past the end.
             if (result.items.length === 0 && result.page > 1) setPage(result.pageCount);
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Chargement impossible.');
+            toast.error(error instanceof Error ? error.message : t.clients.loadFailed);
         } finally {
             setLoading(false);
         }
@@ -95,12 +97,12 @@ export default function ClientsPage() {
             const { expeditionsRemoved } = await deleteClient(client.id);
             toast.success(
                 expeditionsRemoved > 0
-                    ? `${client.companyName} et ses ${expeditionsRemoved} expédition(s) supprimés.`
-                    : `${client.companyName} supprimé.`
+                    ? t.clients.deletedWithExpeditions(client.companyName, expeditionsRemoved)
+                    : t.clients.deleted(client.companyName)
             );
             void load();
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Suppression impossible.');
+            toast.error(error instanceof Error ? error.message : t.clients.deleteFailed);
         }
     }
 
@@ -112,24 +114,24 @@ export default function ClientsPage() {
         >
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-2xl font-black tracking-tight text-ink-950">Clients</h1>
+                    <h1 className="text-2xl font-black tracking-tight text-ink-950">{t.clients.title}</h1>
                     <p className="text-sm text-slate-500">
-                        Donneurs d&apos;ordre suivis par ULS Transport.
+                        {t.clients.subtitle}
                     </p>
                 </div>
                 <Button
                     onClick={() => setDialogOpen(true)}
                     className="bg-brand-500 text-ink-950 hover:bg-brand-400 gap-2 shrink-0"
                 >
-                    <Plus className="h-4 w-4" /> Nouveau client
+                    <Plus className="h-4 w-4" /> {t.clients.new}
                 </Button>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {[
-                    { label: 'Clients', value: totals.all, icon: Building2 },
-                    { label: 'Actifs', value: totals.actifs, icon: Users2 },
-                    { label: 'Expéditions', value: totals.expeditions, icon: Truck },
+                    { label: t.clients.totalCard, value: totals.all, icon: Building2 },
+                    { label: t.clients.activeCard, value: totals.actifs, icon: Users2 },
+                    { label: t.clients.expeditionsCard, value: totals.expeditions, icon: Truck },
                 ].map(card => (
                     <Card key={card.label} className="border-slate-200">
                         <CardContent className="flex items-center gap-3 p-4">
@@ -157,17 +159,17 @@ export default function ClientsPage() {
                             <Input
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                placeholder="Rechercher une société, un contact, une ville, un SIRET…"
+                                placeholder={t.clients.searchPlaceholder}
                                 className="pl-9 bg-white"
                             />
                         </div>
 
                         <Select value={status} onValueChange={v => { setStatus(v); setPage(1); }}>
                             <SelectTrigger className="w-full sm:w-[170px] bg-white">
-                                <SelectValue placeholder="Statut" />
+                                <SelectValue placeholder={t.clients.table.status} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="All">Tous les statuts</SelectItem>
+                                <SelectItem value="All">{t.clients.allStatuses}</SelectItem>
                                 {CLIENT_STATUSES.map(s => (
                                     <SelectItem key={s} value={s}>{s}</SelectItem>
                                 ))}
@@ -176,10 +178,10 @@ export default function ClientsPage() {
 
                         <Select value={service} onValueChange={v => { setService(v); setPage(1); }}>
                             <SelectTrigger className="w-full sm:w-[220px] bg-white">
-                                <SelectValue placeholder="Service" />
+                                <SelectValue placeholder={t.clients.table.services} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="All">Tous les services</SelectItem>
+                                <SelectItem value="All">{t.clients.allServices}</SelectItem>
                                 {SERVICE_OPTIONS.map(o => (
                                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                                 ))}
@@ -191,12 +193,12 @@ export default function ClientsPage() {
                             onValueChange={v => { setAccountManagerId(v); setPage(1); }}
                         >
                             <SelectTrigger className="w-full sm:w-[190px] bg-white">
-                                <SelectValue placeholder="Chargé de compte" />
+                                <SelectValue placeholder={t.clientDetail.accountManager} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="All">Tous les chargés</SelectItem>
+                                <SelectItem value="All">{t.clients.allManagers}</SelectItem>
                                 {/* The clients nobody owns are the ones worth finding. */}
-                                <SelectItem value="None">Non attribués</SelectItem>
+                                <SelectItem value="None">{t.clients.unassigned}</SelectItem>
                                 {staff.map(s => (
                                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                                 ))}
@@ -213,12 +215,12 @@ export default function ClientsPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow className="bg-slate-50">
-                                    <TableHead>Société</TableHead>
-                                    <TableHead>Contact</TableHead>
-                                    <TableHead>Ville</TableHead>
-                                    <TableHead>Services</TableHead>
-                                    <TableHead className="text-center">Expéditions</TableHead>
-                                    <TableHead>Statut</TableHead>
+                                    <TableHead>{t.clients.table.company}</TableHead>
+                                    <TableHead>{t.clients.table.contact}</TableHead>
+                                    <TableHead>{t.clients.table.city}</TableHead>
+                                    <TableHead>{t.clients.table.services}</TableHead>
+                                    <TableHead className="text-center">{t.clients.table.expeditions}</TableHead>
+                                    <TableHead>{t.clients.table.status}</TableHead>
                                     <TableHead className="w-10" />
                                 </TableRow>
                             </TableHeader>
@@ -226,13 +228,13 @@ export default function ClientsPage() {
                                 {loading ? (
                                     <TableRow>
                                         <TableCell colSpan={7} className="h-24 text-center text-sm text-slate-500">
-                                            Chargement…
+                                            {t.common.loading}
                                         </TableCell>
                                     </TableRow>
                                 ) : clients.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={7} className="h-24 text-center text-sm text-slate-500">
-                                            Aucun client ne correspond à ces critères.
+                                            {t.clients.empty}
                                         </TableCell>
                                     </TableRow>
                                 ) : clients.map(client => {
@@ -287,7 +289,7 @@ export default function ClientsPage() {
                                             <TableCell>
                                                 <Badge variant="outline"
                                                     className={CLIENT_STATUS_STYLES[client.status] ?? ''}>
-                                                    {client.status}
+                                                    {t.crm.clientStatus[client.status] ?? client.status}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-right">
@@ -313,7 +315,7 @@ export default function ClientsPage() {
                         shown={clients.length}
                         onPageChange={setPage}
                         disabled={loading}
-                        noun="client"
+                        noun={t.pagination.client}
                     />
                 </CardContent>
             </Card>
@@ -333,21 +335,16 @@ export default function ClientsPage() {
             <ConfirmDialog
                 open={toDelete !== null}
                 onOpenChange={open => { if (!open) setToDelete(null); }}
-                title={`Supprimer ${toDelete?.companyName} ?`}
+                title={toDelete ? t.clients.deleteTitle(toDelete.companyName) : ''}
                 description={
                     <>
-                        {(toDelete?._count?.expeditions ?? 0) > 0 ? (
-                            <>
-                                Ses <strong>{toDelete?._count?.expeditions} expédition(s)</strong> et
-                                ses contacts seront supprimés avec lui.
-                            </>
-                        ) : (
-                            <>Ce client n&apos;a aucune expédition enregistrée.</>
-                        )}
-                        {' '}Cette action est irréversible.
+                        {(toDelete?._count?.expeditions ?? 0) > 0
+                            ? t.clients.deleteWithExpeditions(toDelete?._count?.expeditions ?? 0)
+                            : t.clients.deleteNoExpeditions}
+                        {' '}{t.common.irreversible}
                     </>
                 }
-                confirmLabel="Supprimer le client"
+                confirmLabel={t.clients.deleteConfirm}
                 onConfirm={async () => {
                     if (toDelete) await handleDelete(toDelete);
                     setToDelete(null);
