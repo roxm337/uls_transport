@@ -38,10 +38,10 @@ export async function getStaffSession(): Promise<StaffSession | null> {
         select: { id: true, role: true, email: true, status: true, allowedSections: true },
     });
 
-    // Deleted, suspended or rejected accounts lose access immediately rather
-    // than when their token happens to expire.
+    // Deleted or non-active accounts lose access immediately rather than when
+    // their token happens to expire.
     if (!user) return null;
-    if (user.status === 'SUSPENDED' || user.status === 'REJECTED') return null;
+    if (user.status !== 'ACTIVE') return null;
     if (user.role !== 'ADMIN' && user.role !== 'MANAGER') return null;
 
     return {

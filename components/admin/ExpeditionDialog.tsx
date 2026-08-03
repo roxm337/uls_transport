@@ -12,7 +12,7 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
-import { EXPEDITION_STATUSES, SERVICE_OPTIONS } from '@/lib/crm';
+import { SERVICE_OPTIONS } from '@/lib/crm';
 import { useLanguage } from '@/lib/i18n/context';
 import {
     createExpedition, updateExpedition, fetchClientOptions,
@@ -97,6 +97,9 @@ export function ExpeditionDialog({
         e.preventDefault();
         if (!form.clientId) return toast.error(t.expeditionDialog.clientRequired);
         if (!form.service) return toast.error(t.expeditionDialog.serviceRequired);
+        if (form.pickupDate && form.deliveryDate && form.deliveryDate < form.pickupDate) {
+            return toast.error("La date de livraison ne peut pas précéder la date d'enlèvement.");
+        }
 
         setSaving(true);
         try {
@@ -139,8 +142,8 @@ export function ExpeditionDialog({
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="grid gap-4 sm:grid-cols-3">
-                        <div className="grid gap-2 sm:col-span-1">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid gap-2">
                             <Label>{t.expeditionDialog.client} *</Label>
                             <Select value={form.clientId} onValueChange={set('clientId')}>
                                 <SelectTrigger><SelectValue placeholder={t.expeditionDialog.choose} /></SelectTrigger>
@@ -151,26 +154,13 @@ export function ExpeditionDialog({
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="grid gap-2 sm:col-span-1">
+                        <div className="grid gap-2">
                             <Label>{t.expeditionDialog.service} *</Label>
                             <Select value={form.service} onValueChange={set('service')}>
                                 <SelectTrigger><SelectValue placeholder={t.expeditionDialog.choose} /></SelectTrigger>
                                 <SelectContent>
                                     {SERVICE_OPTIONS.map(o => (
                                         <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="grid gap-2 sm:col-span-1">
-                            <Label>{t.expeditionDialog.status}</Label>
-                            <Select value={form.status} onValueChange={set('status')}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    {EXPEDITION_STATUSES.map(s => (
-                                        <SelectItem key={s.value} value={s.value}>
-                                            {t.crm.expeditionStatus[s.value] ?? s.label}
-                                        </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -198,6 +188,7 @@ export function ExpeditionDialog({
                             <div className="grid gap-2">
                                 <Label htmlFor="pu-date">{t.expeditionDialog.date}</Label>
                                 <Input id="pu-date" type="date" value={form.pickupDate}
+                                    max={form.deliveryDate || undefined}
                                     onChange={e => set('pickupDate')(e.target.value)} />
                             </div>
                         </div>
@@ -224,6 +215,7 @@ export function ExpeditionDialog({
                             <div className="grid gap-2">
                                 <Label htmlFor="dl-date">{t.expeditionDialog.date}</Label>
                                 <Input id="dl-date" type="date" value={form.deliveryDate}
+                                    min={form.pickupDate || undefined}
                                     onChange={e => set('deliveryDate')(e.target.value)} />
                             </div>
                         </div>

@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { validateOrigin, isMutating } from '@/lib/origin';
 
 /** Sections only an ADMIN may open; MANAGER is bounced back to the dashboard. */
-const ADMIN_ONLY = ['/admin/users', '/admin/logs', '/admin/settings'];
+const ADMIN_ONLY = ['/admin/users', '/admin/logs'];
 
 export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;

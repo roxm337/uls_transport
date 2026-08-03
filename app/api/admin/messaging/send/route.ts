@@ -8,6 +8,7 @@ import { requireSection } from '@/lib/server/staff-auth';
 import { MessagingService } from '@/lib/services/messaging';
 import { prisma } from '@/lib/db';
 import { errorMessage } from '@/lib/errors';
+import { TemplateRenderer } from '@/lib/services/messaging/template-renderer';
 
 
 export async function POST(request: NextRequest) {
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
                 to: recipient,
                 subject,
                 text: message,
-                html: `<p>${message.replace(/\n/g, '<br>')}</p>`,
+                html: TemplateRenderer.textToHtml(message),
             }, { templateId });
         } else if (channel === 'whatsapp') {
             result = await messagingService.sendWhatsApp({

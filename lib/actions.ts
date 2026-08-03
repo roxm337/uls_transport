@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { verifyToken, verifyPassword, hashPassword } from '@/lib/auth';
 import { logSecurityEvent, SecurityEvent, SecuritySeverity } from '@/lib/security-logger';
+import { getStaffSession, requireAdmin } from '@/lib/server/staff-auth';
 
 export async function logAction(action: string, details?: unknown) {
     try {
@@ -52,12 +53,12 @@ export async function logAction(action: string, details?: unknown) {
 
 export async function getAdminSetting(key: string, defaultValue: string): Promise<string> {
     try {
-        console.log(`[getAdminSetting] Fetching key: ${key}`);
+        const guard = await requireAdmin();
+        if (!guard.ok) return defaultValue;
         const setting = await prisma.adminSettings.findUnique({
             where: { key },
         });
         const value = setting?.value ?? defaultValue;
-        console.log(`[getAdminSetting] Found value for ${key}: ${value}`);
         return value;
     } catch (error) {
         console.error(`Failed to get setting ${key}:`, error);
@@ -67,7 +68,8 @@ export async function getAdminSetting(key: string, defaultValue: string): Promis
 
 export async function updateAdminSetting(key: string, value: string) {
     try {
-        console.log(`[updateAdminSetting] Updating ${key} to ${value}`);
+        const guard = await requireAdmin();
+        if (!guard.ok) return { success: false, error: 'Réservé aux administrateurs.' };
         const setting = await prisma.adminSettings.upsert({
             where: { key },
             update: { value },
@@ -79,7 +81,6 @@ export async function updateAdminSetting(key: string, value: string) {
         // Revalidate the settings page
         revalidatePath('/admin/settings');
 
-        console.log(`[updateAdminSetting] Successfully updated ${key}`);
         return { success: true, setting };
     } catch (error) {
         console.error(`Failed to update setting ${key}:`, error);
@@ -89,16 +90,11 @@ export async function updateAdminSetting(key: string, value: string) {
 
 export async function getUserProfile() {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('auth-token')?.value;
-
-        if (!token) return null;
-
-        const payload = await verifyToken(token);
-        if (!payload?.userId) return null;
+        const session = await getStaffSession();
+        if (!session) return null;
 
         const user = await prisma.user.findUnique({
-            where: { id: payload.userId as string },
+            where: { id: session.userId },
             select: {
                 id: true,
                 name: true,
@@ -116,16 +112,11 @@ export async function getUserProfile() {
 
 export async function updateUserProfile(data: { name?: string; email?: string }) {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('auth-token')?.value;
-
-        if (!token) return { success: false, error: 'Non authentifié.' };
-
-        const payload = await verifyToken(token);
-        if (!payload?.userId) return { success: false, error: 'Session invalide.' };
+        const session = await getStaffSession();
+        if (!session) return { success: false, error: 'Session invalide.' };
 
         const user = await prisma.user.update({
-            where: { id: payload.userId as string },
+            where: { id: session.userId },
             data: {
                 name: data.name,
                 email: data.email,
@@ -161,12 +152,8 @@ export async function changeOwnPassword(data: {
     newPassword: string;
 }) {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('auth-token')?.value;
-        if (!token) return { success: false, error: 'Non authentifié.' };
-
-        const payload = await verifyToken(token);
-        if (!payload?.userId) return { success: false, error: 'Session invalide.' };
+        const session = await getStaffSession();
+        if (!session) return { success: false, error: 'Session invalide.' };
 
         if (!data.currentPassword || !data.newPassword) {
             return { success: false, error: 'Les deux mots de passe sont obligatoires.' };
@@ -187,7 +174,7 @@ export async function changeOwnPassword(data: {
         }
 
         const user = await prisma.user.findUnique({
-            where: { id: payload.userId as string },
+            where: { id: session.userId },
             select: { id: true, email: true, password: true },
         });
         if (!user) return { success: false, error: 'Compte introuvable.' };

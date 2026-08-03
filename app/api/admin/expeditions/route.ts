@@ -5,7 +5,13 @@ import { logAction } from '@/lib/actions';
 import { requireSection } from '@/lib/server/staff-auth';
 import { nextExpeditionReference } from '@/lib/server/expedition-reference';
 import { notifyExpedition } from '@/lib/server/expedition-notifications';
-import { EXPEDITION_STATUS_VALUES, SERVICE_SLUGS, EXPEDITION_ACTIVE } from '@/lib/crm';
+import { SERVICE_SLUGS, EXPEDITION_ACTIVE } from '@/lib/crm';
+import {
+    ExpeditionValidationError,
+    parseExpeditionDate,
+    parseNonNegativeNumber,
+    validateExpeditionDates,
+} from '@/lib/server/expedition-validation';
 
 const SECTION = '/admin/expeditions';
 
@@ -25,18 +31,6 @@ function present<T extends { priceHt: unknown }>(expedition: T) {
         ...expedition,
         priceHt: expedition.priceHt === null ? null : Number(expedition.priceHt),
     };
-}
-
-function parseDate(value: unknown): Date | null {
-    if (!value || typeof value !== 'string') return null;
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function parseNumber(value: unknown): number | null {
-    if (value === null || value === undefined || value === '') return null;
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
 }
 
 export async function GET(req: Request) {
@@ -118,7 +112,7 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json();
-        const { clientId, service, status } = body;
+        const { clientId, service } = body;
 
         if (!clientId) {
             return NextResponse.json({ error: 'Le client est obligatoire.' }, { status: 400 });
@@ -126,9 +120,19 @@ export async function POST(req: Request) {
         if (!service || !SERVICE_SLUGS.includes(service)) {
             return NextResponse.json({ error: 'Service ULS invalide.' }, { status: 400 });
         }
-        if (status && !EXPEDITION_STATUS_VALUES.includes(status)) {
-            return NextResponse.json({ error: 'Statut invalide.' }, { status: 400 });
+        if (body.status !== undefined && body.status !== 'Demandee') {
+            return NextResponse.json(
+                { error: 'Une nouvelle expédition doit commencer au statut « Demandée ».' },
+                { status: 400 }
+            );
         }
+
+        const pickupDate = parseExpeditionDate(body.pickupDate, "Date d'enlèvement");
+        const deliveryDate = parseExpeditionDate(body.deliveryDate, 'Date de livraison');
+        validateExpeditionDates(pickupDate, deliveryDate);
+        const packages = parseNonNegativeNumber(body.packages, 'Le nombre de colis', { integer: true });
+        const weightKg = parseNonNegativeNumber(body.weightKg, 'Le poids');
+        const priceHt = parseNonNegativeNumber(body.priceHt, 'Le prix HT');
 
         const client = await prisma.client.findUnique({ where: { id: clientId } });
         if (!client) {
@@ -143,7 +147,7 @@ export async function POST(req: Request) {
         });
         const actorName = actor?.name || actor?.email || null;
 
-        const expedition = await prisma.$transaction(async tx => {
+        const createAttempt = () => prisma.$transaction(async tx => {
             const reference = await nextExpeditionReference(tx, year);
 
             const created = await tx.expedition.create({
@@ -151,21 +155,21 @@ export async function POST(req: Request) {
                     reference,
                     clientId,
                     service,
-                    status: status || 'Demandee',
+                    status: 'Demandee',
                     pickupAddress: body.pickupAddress || null,
                     pickupPostalCode: body.pickupPostalCode || null,
                     pickupCity: body.pickupCity || null,
-                    pickupDate: parseDate(body.pickupDate),
+                    pickupDate,
                     deliveryAddress: body.deliveryAddress || null,
                     deliveryPostalCode: body.deliveryPostalCode || null,
                     deliveryCity: body.deliveryCity || null,
-                    deliveryDate: parseDate(body.deliveryDate),
+                    deliveryDate,
                     goodsDescription: body.goodsDescription || null,
-                    packages: parseNumber(body.packages),
-                    weightKg: parseNumber(body.weightKg),
+                    packages,
+                    weightKg,
                     temperature: body.temperature || null,
                     vehicleType: body.vehicleType || null,
-                    priceHt: parseNumber(body.priceHt),
+                    priceHt,
                     notes: body.notes || null,
                 },
                 include: { client: { select: { id: true, companyName: true } } },
@@ -184,7 +188,22 @@ export async function POST(req: Request) {
             });
 
             return created;
-        });
+        }, { isolationLevel: 'Serializable' });
+
+        // Two operators can submit at the same instant. Serializable isolation
+        // plus a short retry prevents both requests from keeping the same
+        // highest reference and turning one valid creation into a 500.
+        let expedition: Awaited<ReturnType<typeof createAttempt>> | null = null;
+        let allocationError: unknown;
+        for (let attempt = 0; attempt < 3 && !expedition; attempt += 1) {
+            try {
+                expedition = await createAttempt();
+            } catch (error) {
+                allocationError = error;
+                if (!isReferenceAllocationConflict(error) || attempt === 2) throw error;
+            }
+        }
+        if (!expedition) throw allocationError;
 
         await logAction('Create Expedition', {
             id: expedition.id,
@@ -205,7 +224,16 @@ export async function POST(req: Request) {
             { status: 201 }
         );
     } catch (error) {
+        if (error instanceof ExpeditionValidationError) {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+        }
         console.error('Failed to create expedition:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
+}
+
+function isReferenceAllocationConflict(error: unknown): boolean {
+    if (typeof error !== 'object' || error === null || !('code' in error)) return false;
+    const code = (error as { code?: string }).code;
+    return code === 'P2002' || code === 'P2034';
 }

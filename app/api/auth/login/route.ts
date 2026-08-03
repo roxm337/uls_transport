@@ -90,6 +90,21 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Votre demande d\'inscription a été refusée.' }, { status: 403 });
         }
 
+        if (user.status === 'PENDING') {
+            await logSecurityEvent(SecurityEvent.ACCESS_DENIED, {
+                severity: SecuritySeverity.WARN,
+                userId: user.id,
+                email: user.email,
+                ip,
+                details: { reason: 'Account pending approval' },
+                req
+            });
+            return NextResponse.json(
+                { error: 'Votre compte est en attente de validation par un administrateur.' },
+                { status: 403 }
+            );
+        }
+
         const isValid = await verifyPassword(password, user.password);
         if (!isValid) {
             // Log Failed Login (Invalid Password)

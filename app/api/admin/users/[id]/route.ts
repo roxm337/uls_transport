@@ -77,6 +77,12 @@ export async function PATCH(
         }
 
         if (password && password.trim() !== '') {
+            if (password.length < 8) {
+                return NextResponse.json(
+                    { error: 'Le mot de passe doit contenir au moins 8 caractères.' },
+                    { status: 400 }
+                );
+            }
             updateData.password = await hashPassword(password);
         }
 

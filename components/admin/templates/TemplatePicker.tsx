@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { FileText, Star, Eye, Loader2, Sparkles, Mail, MessageCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { cn, escapeHtml } from '@/lib/utils';
 import { useLanguage } from '@/lib/i18n/context';
 import { templateCategoryLabel } from '@/lib/crm';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -100,7 +100,7 @@ export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePi
     // Format WhatsApp preview text
     const formatPreview = (text: string) => {
         if (type === 'whatsapp') {
-            return text
+            return escapeHtml(text)
                 .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
                 .replace(/_([^_]+)_/g, '<em>$1</em>')
                 .replace(/\n/g, '<br/>');

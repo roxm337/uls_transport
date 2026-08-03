@@ -21,15 +21,15 @@ interface Section {
 }
 
 const AVAILABLE_SECTIONS: Section[] = [
-    { path: '/admin', label: 'Dashboard', description: 'Overview and statistics' },
+    { path: '/admin', label: 'Tableau de bord', description: 'Accès de base obligatoire' },
     { path: '/admin/clients', label: 'Clients', description: 'Consulter et gérer les clients' },
     { path: '/admin/expeditions', label: 'Expéditions', description: 'Consulter et gérer les expéditions' },
     { path: '/admin/analytics', label: 'Analytique', description: 'Consulter les statistiques' },
-    { path: '/admin/users', label: 'Équipe', description: 'Gérer les comptes internes' },
     { path: '/admin/messaging', label: 'Messagerie', description: 'Configuration e-mail et WhatsApp' },
-    { path: '/admin/logs', label: 'Journaux', description: 'Consulter les journaux système' },
-    { path: '/admin/settings', label: 'Réglages', description: 'Paramètres de l’application' },
+    { path: '/admin/settings', label: 'Mon compte', description: 'Profil et mot de passe — accès obligatoire' },
 ];
+
+const MANDATORY_SECTIONS = ['/admin', '/admin/settings'];
 
 export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps) {
     const [allowedSections, setAllowedSections] = useState<string[]>([]);
@@ -45,11 +45,11 @@ export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps
                 const data = await response.json();
                 setAllowedSections(data.allowedSections || []);
             } else {
-                toast.error('Failed to load permissions');
+                toast.error('Impossible de charger les permissions');
             }
         } catch (error) {
             console.error('Error fetching permissions:', error);
-            toast.error('Failed to load permissions');
+            toast.error('Impossible de charger les permissions');
         } finally {
             setIsLoading(false);
         }
@@ -63,6 +63,8 @@ export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps
 
 
     const handleToggleSection = (sectionPath: string) => {
+        if (MANDATORY_SECTIONS.includes(sectionPath)) return;
+
         setAllowedSections(prev => {
             const newSections = prev.includes(sectionPath)
                 ? prev.filter(s => s !== sectionPath)
@@ -82,15 +84,17 @@ export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps
             });
 
             if (response.ok) {
-                toast.success('Permissions updated successfully');
+                const data = await response.json();
+                setAllowedSections(data.user.allowedSections);
+                toast.success('Permissions mises à jour');
                 setHasChanges(false);
             } else {
                 const data = await response.json();
-                toast.error(data.error || 'Failed to update permissions');
+                toast.error(data.error || 'Impossible de mettre à jour les permissions');
             }
         } catch (error) {
             console.error('Error updating permissions:', error);
-            toast.error('Failed to update permissions');
+            toast.error('Impossible de mettre à jour les permissions');
         } finally {
             setIsSaving(false);
         }
@@ -130,10 +134,10 @@ export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Shield className="h-5 w-5 text-blue-600" />
-                        Section Access
+                        Accès aux sections
                     </CardTitle>
                     <CardDescription>
-                        Configure which sections this manager can see
+                        Choisissez les espaces accessibles à ce responsable. Le tableau de bord reste obligatoire.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -154,6 +158,7 @@ export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps
                                         id={section.path}
                                         checked={isChecked}
                                         onCheckedChange={() => handleToggleSection(section.path)}
+                                        disabled={MANDATORY_SECTIONS.includes(section.path)}
                                         className="mt-0.5"
                                     />
                                     <div className="flex-1 space-y-0.5">
@@ -185,7 +190,7 @@ export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps
                         onClick={handleReset}
                         disabled={isSaving}
                     >
-                        Cancel
+                        Annuler
                     </Button>
                     <Button
                         size="sm"
@@ -196,17 +201,17 @@ export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps
                         {isSaving ? (
                             <>
                                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Saving...
+                                Enregistrement…
                             </>
                         ) : (
-                            'Save All Permissions'
+                            'Enregistrer les permissions'
                         )}
                     </Button>
                 </div>
             )}
             {!hasChanges && (
                 <div className="text-xs text-slate-500 text-center pt-2">
-                    {allowedSections.length} sections enabled
+                    {allowedSections.length} section{allowedSections.length > 1 ? 's' : ''} activée{allowedSections.length > 1 ? 's' : ''}
                 </div>
             )}
         </div>

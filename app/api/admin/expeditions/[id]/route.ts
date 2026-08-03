@@ -3,8 +3,18 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { logAction } from '@/lib/actions';
 import { requireSection, canDelete } from '@/lib/server/staff-auth';
-import { EXPEDITION_STATUS_VALUES, SERVICE_SLUGS } from '@/lib/crm';
+import {
+    canTransitionExpedition,
+    EXPEDITION_STATUS_VALUES,
+    SERVICE_SLUGS,
+} from '@/lib/crm';
 import { notifyExpedition } from '@/lib/server/expedition-notifications';
+import {
+    ExpeditionValidationError,
+    parseExpeditionDate,
+    parseNonNegativeNumber,
+    validateExpeditionDates,
+} from '@/lib/server/expedition-validation';
 
 const SECTION = '/admin/expeditions';
 
@@ -13,18 +23,6 @@ function present<T extends { priceHt: unknown }>(expedition: T) {
         ...expedition,
         priceHt: expedition.priceHt === null ? null : Number(expedition.priceHt),
     };
-}
-
-function parseDate(value: unknown): Date | null {
-    if (!value || typeof value !== 'string') return null;
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function parseNumber(value: unknown): number | null {
-    if (value === null || value === undefined || value === '') return null;
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
 }
 
 export async function GET(
@@ -72,28 +70,61 @@ export async function PATCH(
         const { id } = await params;
         const body = await req.json();
 
-        if (body.status && !EXPEDITION_STATUS_VALUES.includes(body.status)) {
+        const previous = await prisma.expedition.findUnique({
+            where: { id },
+            select: { status: true, pickupDate: true, deliveryDate: true },
+        });
+        if (!previous) {
+            return NextResponse.json({ error: 'Expédition introuvable.' }, { status: 404 });
+        }
+
+        if (body.status !== undefined && !EXPEDITION_STATUS_VALUES.includes(body.status)) {
             return NextResponse.json({ error: 'Statut invalide.' }, { status: 400 });
         }
-        if (body.service && !SERVICE_SLUGS.includes(body.service)) {
+        if (
+            body.status !== undefined
+            && !canTransitionExpedition(previous.status, body.status)
+        ) {
+            return NextResponse.json(
+                { error: `Transition de statut interdite : ${previous.status} → ${body.status}.` },
+                { status: 409 }
+            );
+        }
+        if (body.service !== undefined && !SERVICE_SLUGS.includes(body.service)) {
             return NextResponse.json({ error: 'Service ULS invalide.' }, { status: 400 });
         }
 
         const data: Prisma.ExpeditionUpdateInput & Record<string, unknown> = {};
 
         for (const key of [
-            'status', 'service', 'pickupAddress', 'pickupPostalCode', 'pickupCity',
+            'service', 'pickupAddress', 'pickupPostalCode', 'pickupCity',
             'deliveryAddress', 'deliveryPostalCode', 'deliveryCity',
             'goodsDescription', 'temperature', 'vehicleType', 'notes',
         ]) {
             if (body[key] !== undefined) data[key] = body[key] || null;
         }
 
-        if (body.pickupDate !== undefined) data.pickupDate = parseDate(body.pickupDate);
-        if (body.deliveryDate !== undefined) data.deliveryDate = parseDate(body.deliveryDate);
-        if (body.packages !== undefined) data.packages = parseNumber(body.packages);
-        if (body.weightKg !== undefined) data.weightKg = parseNumber(body.weightKg);
-        if (body.priceHt !== undefined) data.priceHt = parseNumber(body.priceHt);
+        if (body.status !== undefined) data.status = body.status;
+
+        const pickupDate = body.pickupDate !== undefined
+            ? parseExpeditionDate(body.pickupDate, "Date d'enlèvement")
+            : previous.pickupDate;
+        const deliveryDate = body.deliveryDate !== undefined
+            ? parseExpeditionDate(body.deliveryDate, 'Date de livraison')
+            : previous.deliveryDate;
+        validateExpeditionDates(pickupDate, deliveryDate);
+
+        if (body.pickupDate !== undefined) data.pickupDate = pickupDate;
+        if (body.deliveryDate !== undefined) data.deliveryDate = deliveryDate;
+        if (body.packages !== undefined) {
+            data.packages = parseNonNegativeNumber(body.packages, 'Le nombre de colis', { integer: true });
+        }
+        if (body.weightKg !== undefined) {
+            data.weightKg = parseNonNegativeNumber(body.weightKg, 'Le poids');
+        }
+        if (body.priceHt !== undefined) {
+            data.priceHt = parseNonNegativeNumber(body.priceHt, 'Le prix HT');
+        }
 
         // Reassigning to another client is allowed, but it must exist.
         if (body.clientId !== undefined && body.clientId) {
@@ -102,14 +133,6 @@ export async function PATCH(
                 return NextResponse.json({ error: 'Client introuvable.' }, { status: 404 });
             }
             data.clientId = body.clientId;
-        }
-
-        const previous = await prisma.expedition.findUnique({
-            where: { id },
-            select: { status: true },
-        });
-        if (!previous) {
-            return NextResponse.json({ error: 'Expédition introuvable.' }, { status: 404 });
         }
 
         const statusChanged =
@@ -171,6 +194,9 @@ export async function PATCH(
 
         return NextResponse.json({ expedition: present(expedition), notified });
     } catch (error) {
+        if (error instanceof ExpeditionValidationError) {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+        }
         console.error('Failed to update expedition:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }

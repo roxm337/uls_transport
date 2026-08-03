@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { Prisma } from '@prisma/client';
 import { requireAdmin } from '@/lib/server/staff-auth';
 import { prisma } from '@/lib/db';
-import { ADMIN_SECTION_VALUES, DEFAULT_MANAGER_SECTIONS } from '@/lib/sections';
+import {
+    ADMIN_ONLY_SECTIONS,
+    ADMIN_SECTION_VALUES,
+    resolveSections,
+} from '@/lib/sections';
 
 
 export async function GET(
@@ -30,9 +34,8 @@ export async function GET(
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
-        // Return default sections if allowedSections is null (backward compatibility)
         const allowedSections = user.role === 'MANAGER'
-            ? (user.allowedSections as string[] | null) ?? DEFAULT_MANAGER_SECTIONS
+            ? resolveSections(user.role, user.allowedSections)
             : null;
 
         return NextResponse.json({
@@ -65,7 +68,7 @@ export async function POST(
         const { allowedSections } = body;
 
         // Validate allowedSections is an array of strings
-        if (allowedSections && !Array.isArray(allowedSections)) {
+        if (!Array.isArray(allowedSections)) {
             return NextResponse.json(
                 { error: 'allowedSections must be an array' },
                 { status: 400 }
@@ -74,14 +77,16 @@ export async function POST(
 
         const validSections = ADMIN_SECTION_VALUES;
 
-        if (allowedSections) {
-            for (const section of allowedSections) {
-                if (typeof section !== 'string' || !validSections.includes(section)) {
+        for (const section of allowedSections) {
+            if (
+                typeof section !== 'string'
+                || !validSections.includes(section)
+                || ADMIN_ONLY_SECTIONS.includes(section)
+            ) {
                     return NextResponse.json(
                         { error: `Invalid section: ${section}` },
                         { status: 400 }
                     );
-                }
             }
         }
 
@@ -103,8 +108,10 @@ export async function POST(
         }
 
         // Prepare update data
-        const updateData: Prisma.UserUpdateInput = {};
-        if (allowedSections !== undefined) updateData.allowedSections = allowedSections;
+        const resolvedSections = resolveSections('MANAGER', allowedSections);
+        const updateData: Prisma.UserUpdateInput = {
+            allowedSections: resolvedSections,
+        };
 
         // Update user permissions
         const updatedUser = await prisma.user.update({
@@ -126,7 +133,7 @@ export async function POST(
                 email: updatedUser.email,
                 name: updatedUser.name,
                 role: updatedUser.role,
-                allowedSections: updatedUser.allowedSections
+                allowedSections: resolveSections(updatedUser.role, updatedUser.allowedSections)
             }
         });
     } catch (error) {

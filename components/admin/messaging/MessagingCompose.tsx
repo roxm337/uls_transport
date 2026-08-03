@@ -60,7 +60,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn } from '@/lib/utils';
+import { cn, escapeHtml } from '@/lib/utils';
 import { useSearchParams } from 'next/navigation';
 import { TemplatePicker } from '@/components/admin/templates/TemplatePicker';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -473,7 +473,7 @@ export function MessagingCompose() {
     };
 
     const formatWhatsAppPreview = (text: string) => {
-        return text
+        return escapeHtml(text)
             .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
             .replace(/_([^_]+)_/g, '<em>$1</em>')
             .replace(/~([^~]+)~/g, '<del>$1</del>')

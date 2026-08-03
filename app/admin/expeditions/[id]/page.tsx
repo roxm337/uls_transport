@@ -24,7 +24,7 @@ import { ExpeditionDialog } from '@/components/admin/ExpeditionDialog';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import {
     EXPEDITION_STATUSES, EXPEDITION_STATUS_STYLES,
-    serviceLabel, formatEuros,
+    allowedExpeditionTransitions, serviceLabel, formatEuros,
 } from '@/lib/crm';
 import {
     fetchExpedition, updateExpedition, deleteExpedition,
@@ -115,6 +115,10 @@ export default function ExpeditionDetailPage() {
 
     const fmtDate = (v: string | null) =>
         v ? new Date(v).toLocaleDateString(t.locale, { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
+    const nextStatuses = allowedExpeditionTransitions(expedition.status);
+    const selectableStatuses = EXPEDITION_STATUSES.filter(
+        status => status.value === expedition.status || nextStatuses.includes(status.value)
+    );
 
     return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -152,13 +156,13 @@ export default function ExpeditionDetailPage() {
                                 setPendingStatus(value);
                             }
                         }}
-                        disabled={updatingStatus}
+                        disabled={updatingStatus || nextStatuses.length === 0}
                     >
                         <SelectTrigger className="w-[170px] bg-white">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            {EXPEDITION_STATUSES.map(s => (
+                            {selectableStatuses.map(s => (
                                 <SelectItem key={s.value} value={s.value}>
                                     {t.crm.expeditionStatus[s.value] ?? s.label}
                                 </SelectItem>

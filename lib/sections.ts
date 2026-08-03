@@ -28,7 +28,6 @@ export const ADMIN_SECTION_VALUES: string[] = [...ADMIN_SECTIONS];
 export const ADMIN_ONLY_SECTIONS: string[] = [
     '/admin/users',
     '/admin/logs',
-    '/admin/settings',
 ];
 
 /** What a MANAGER gets when nothing has been configured for them. */
@@ -37,6 +36,7 @@ export const DEFAULT_MANAGER_SECTIONS: string[] = [
     '/admin/clients',
     '/admin/expeditions',
     '/admin/messaging',
+    '/admin/settings',
 ];
 
 /**
@@ -70,14 +70,18 @@ export function isAdminSection(value: unknown): value is AdminSection {
 export function resolveSections(role: string, raw: unknown): string[] {
     if (role === 'ADMIN') return [...ADMIN_SECTION_VALUES];
 
-    const stored = Array.isArray(raw)
+    // `null` means permissions have never been configured. An explicit empty
+    // array must not silently expand back to the defaults.
+    const sections = Array.isArray(raw)
         ? raw.filter(isAdminSection)
-        : [];
-
-    const sections = stored.length > 0 ? stored : DEFAULT_MANAGER_SECTIONS;
+        : DEFAULT_MANAGER_SECTIONS;
 
     // A MANAGER never holds an admin-only section, however the row was written.
-    return sections.filter(s => !ADMIN_ONLY_SECTIONS.includes(s));
+    const granted = sections.filter(s => !ADMIN_ONLY_SECTIONS.includes(s));
+
+    // Every active manager needs a safe landing page. Optional access is still
+    // fully revocable; suspending the account is the way to remove all access.
+    return [...new Set(['/admin', '/admin/settings', ...granted])];
 }
 
 /**

@@ -219,7 +219,8 @@ export class TemplateRenderer {
      * Convert text template to HTML (for email)
      */
     static textToHtml(text: string): string {
-        // Replace newlines with <br> and wrap in paragraph
-        return `<p>${text.replace(/\n/g, '<br>')}</p>`;
+        // Templates and their resolved variables are user-controlled. Escape
+        // them before adding the small amount of email markup we own.
+        return `<p>${this.htmlEscape(text).replace(/\n/g, '<br>')}</p>`;
     }
 }

@@ -4,9 +4,9 @@ import type { Prisma } from '@prisma/client';
  * Allocate the next expedition reference for the current year:
  * ULS-2026-0001, ULS-2026-0002, …
  *
- * Runs inside the caller's transaction and reads the highest existing
- * reference for the year, so a deleted record never causes a collision the
- * way a plain COUNT(*) would.
+ * Runs inside the caller's serializable, retryable transaction and reads the
+ * highest existing reference for the year, so concurrent requests and deleted
+ * records cannot produce a duplicate the way a plain COUNT(*) would.
  */
 export async function nextExpeditionReference(
     tx: Prisma.TransactionClient,

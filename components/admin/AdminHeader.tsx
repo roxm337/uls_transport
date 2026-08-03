@@ -114,17 +114,12 @@ export function AdminHeader({ onMobileMenuClick, account, role }: AdminHeaderPro
                                 </div>
                             </DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            {/* Settings is ADMIN-only, matching the middleware
-                                guard — offering it to a MANAGER would lead
-                                straight to a redirect. */}
-                            {role === 'ADMIN' && (
-                                <DropdownMenuItem asChild>
-                                    <Link href="/admin/settings" className="cursor-pointer">
-                                        <Settings className="mr-2 h-4 w-4" />
-                                        {t.header.settings}
-                                    </Link>
-                                </DropdownMenuItem>
-                            )}
+                            <DropdownMenuItem asChild>
+                                <Link href="/admin/settings" className="cursor-pointer">
+                                    <Settings className="mr-2 h-4 w-4" />
+                                    {t.header.settings}
+                                </Link>
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                                 onSelect={handleLogout}
                                 className="cursor-pointer text-red-600 focus:text-red-600"

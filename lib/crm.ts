@@ -38,6 +38,26 @@ export function expeditionStatusLabel(value: string): string {
     return EXPEDITION_STATUSES.find(s => s.value === value)?.label ?? value;
 }
 
+/** Legal forward transitions in the operational shipment workflow. */
+export const EXPEDITION_TRANSITIONS: Record<ExpeditionStatus, ExpeditionStatus[]> = {
+    Demandee: ['Planifiee', 'Annulee'],
+    Planifiee: ['Enlevee', 'Annulee'],
+    Enlevee: ['En transit', 'Annulee'],
+    'En transit': ['Livree', 'Annulee'],
+    Livree: [],
+    Annulee: [],
+};
+
+export function allowedExpeditionTransitions(status: string): ExpeditionStatus[] {
+    return EXPEDITION_STATUS_VALUES.includes(status)
+        ? EXPEDITION_TRANSITIONS[status as ExpeditionStatus]
+        : [];
+}
+
+export function canTransitionExpedition(from: string, to: string): boolean {
+    return from === to || allowedExpeditionTransitions(from).includes(to as ExpeditionStatus);
+}
+
 export const EXPEDITION_STATUS_STYLES: Record<string, string> = {
     Demandee: 'bg-slate-100 text-slate-700 border-slate-200',
     Planifiee: 'bg-sky-50 text-sky-700 border-sky-200',

@@ -22,6 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
 /** A delivered shipment and the date it was actually delivered. */
 interface Delivery {
     id: string;
+    clientId: string;
     deliveredAt: Date;
     revenue: number;
 }
@@ -50,7 +51,7 @@ async function loadDeliveries(): Promise<Delivery[]> {
     const [expeditions, events] = await Promise.all([
         prisma.expedition.findMany({
             where: { status: 'Livree' },
-            select: { id: true, deliveryDate: true, updatedAt: true, priceHt: true },
+            select: { id: true, clientId: true, deliveryDate: true, updatedAt: true, priceHt: true },
         }),
         prisma.expeditionEvent.findMany({
             where: { type: 'status', status: 'Livree' },
@@ -66,6 +67,7 @@ async function loadDeliveries(): Promise<Delivery[]> {
 
     return expeditions.map(e => ({
         id: e.id,
+        clientId: e.clientId,
         deliveredAt: deliveredAtById.get(e.id) ?? e.deliveryDate ?? e.updatedAt,
         revenue: e.priceHt === null ? 0 : Number(e.priceHt),
     }));
@@ -150,7 +152,6 @@ export async function GET() {
         const topClientsRaw = await prisma.expedition.groupBy({
             by: ['clientId'],
             _count: { clientId: true },
-            _sum: { priceHt: true },
             orderBy: { _count: { clientId: 'desc' } },
             take: 6,
         });
@@ -159,11 +160,19 @@ export async function GET() {
             select: { id: true, companyName: true },
         });
         const nameById = new Map(topClientNames.map(c => [c.id, c.companyName]));
+        const deliveredRevenueByClient = deliveries.reduce((totals, delivery) => {
+            totals.set(
+                delivery.clientId,
+                (totals.get(delivery.clientId) ?? 0) + delivery.revenue
+            );
+            return totals;
+        }, new Map<string, number>());
         const topClients = topClientsRaw.map(c => ({
             id: c.clientId,
             name: nameById.get(c.clientId) ?? '—',
             expeditions: c._count.clientId,
-            revenue: c._sum.priceHt ? Number(c._sum.priceHt) : 0,
+            // Match every other revenue figure: only delivered work is earned.
+            revenue: deliveredRevenueByClient.get(c.clientId) ?? 0,
         }));
 
         const statusMap = new Map(byStatus.map(s => [s.status, s._count.status]));

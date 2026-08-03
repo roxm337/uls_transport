@@ -21,8 +21,11 @@ export async function GET(request: NextRequest) {
         const channel = searchParams.get('channel'); // 'email' or 'whatsapp'
         const status = searchParams.get('status'); // 'sent', 'failed', 'pending'
         const recipient = searchParams.get('recipient'); // Filter by recipient
-        const limit = parseInt(searchParams.get('limit') || '50');
-        const offset = parseInt(searchParams.get('offset') || '0');
+        const search = searchParams.get('search')?.trim();
+        const requestedLimit = Number.parseInt(searchParams.get('limit') || '10', 10);
+        const requestedOffset = Number.parseInt(searchParams.get('offset') || '0', 10);
+        const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 10, 1), 100);
+        const offset = Math.max(Number.isFinite(requestedOffset) ? requestedOffset : 0, 0);
 
         // Filtering by `scopeId` — the client whose configuration sent the
         // message — is gone with the per-client configurations. Every message
@@ -44,8 +47,17 @@ export async function GET(request: NextRequest) {
             };
         }
 
-        // Get logs
-        const [logs, total] = await Promise.all([
+        if (search) {
+            where.OR = [
+                { recipient: { contains: search } },
+                { subject: { contains: search } },
+                { message: { contains: search } },
+            ];
+        }
+
+        // All totals use the same filters and search as the table; pagination
+        // changes only the visible rows, never the meaning of the cards.
+        const [logs, total, sent, failed, email, whatsapp] = await Promise.all([
             prisma.messageLog.findMany({
                 where,
                 orderBy: { createdAt: 'desc' },
@@ -56,6 +68,10 @@ export async function GET(request: NextRequest) {
                 },
             }),
             prisma.messageLog.count({ where }),
+            prisma.messageLog.count({ where: { AND: [where, { status: 'sent' }] } }),
+            prisma.messageLog.count({ where: { AND: [where, { status: 'failed' }] } }),
+            prisma.messageLog.count({ where: { AND: [where, { channel: 'email' }] } }),
+            prisma.messageLog.count({ where: { AND: [where, { channel: 'whatsapp' }] } }),
         ]);
 
         return NextResponse.json({
@@ -63,6 +79,7 @@ export async function GET(request: NextRequest) {
             total,
             limit,
             offset,
+            stats: { total, sent, failed, email, whatsapp },
         });
     } catch (error) {
         console.error('[API] GET /api/admin/messaging/logs error:', error);

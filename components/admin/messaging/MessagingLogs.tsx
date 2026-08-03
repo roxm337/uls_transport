@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useDeferredValue } from 'react';
 import {
     Card,
     CardContent,
@@ -75,6 +75,16 @@ interface MessageLogRow {
     template?: { name: string; category?: string | null } | null;
 }
 
+interface LogStats {
+    total: number;
+    sent: number;
+    failed: number;
+    email: number;
+    whatsapp: number;
+}
+
+const EMPTY_STATS: LogStats = { total: 0, sent: 0, failed: 0, email: 0, whatsapp: 0 };
+
 
 /** Loading placeholder. Defined at module scope: a component
  * created during render is a new type on every pass, so React
@@ -101,81 +111,87 @@ export function MessagingLogs() {
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [total, setTotal] = useState(0);
+    const [stats, setStats] = useState<LogStats>(EMPTY_STATS);
+    const [isExporting, setIsExporting] = useState(false);
+    const deferredSearch = useDeferredValue(searchQuery);
     const itemsPerPage = 10;
+
+    const buildParams = useCallback((limit: number, offset: number) => {
+        const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+        if (channelFilter !== 'all') params.set('channel', channelFilter);
+        if (statusFilter !== 'all') params.set('status', statusFilter);
+        if (deferredSearch.trim()) params.set('search', deferredSearch.trim());
+        return params;
+    }, [channelFilter, statusFilter, deferredSearch]);
 
     const fetchLogs = useCallback(async () => {
         setIsLoading(true);
         try {
-            const params = new URLSearchParams();
-            if (channelFilter !== 'all') params.append('channel', channelFilter);
-            if (statusFilter !== 'all') params.append('status', statusFilter);
-
+            const params = buildParams(itemsPerPage, (currentPage - 1) * itemsPerPage);
             const response = await fetch(`/api/admin/messaging/logs?${params.toString()}`);
-            if (response.ok) {
-                const data = await response.json();
-                setLogs(data.logs || []);
-            }
+            if (!response.ok) throw new Error('Failed to load messaging logs');
+            const data = await response.json();
+            setLogs(data.logs || []);
+            setTotal(data.total || 0);
+            setStats(data.stats || EMPTY_STATS);
         } catch (error) {
             console.error('Failed to fetch logs:', error);
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [buildParams, currentPage]);
 
     useEffect(() => {
-        fetchLogs();
-    }, [channelFilter, statusFilter]);
+        void fetchLogs();
+    }, [fetchLogs]);
 
-
-    // Filter logs by search query
-    const filteredLogs = logs.filter(log => {
-        if (!searchQuery) return true;
-        const query = searchQuery.toLowerCase();
-        return (
-            log.recipient?.toLowerCase().includes(query) ||
-            log.subject?.toLowerCase().includes(query) ||
-            log.message?.toLowerCase().includes(query)
-        );
-    });
-
-    // Pagination
-    const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
-    const paginatedLogs = filteredLogs.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
-
-    // Stats
-    const stats = {
-        total: logs.length,
-        sent: logs.filter(l => l.status === 'sent').length,
-        failed: logs.filter(l => l.status === 'failed').length,
-        email: logs.filter(l => l.channel === 'email').length,
-        whatsapp: logs.filter(l => l.channel === 'whatsapp').length,
-    };
+    const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
 
     // Export to CSV
-    const exportToCSV = () => {
-        const headers = ['Date', 'Channel', 'Recipient', 'Subject', 'Status', 'Error'];
-        const rows = filteredLogs.map(log => [
-            format(new Date(log.createdAt), 'yyyy-MM-dd HH:mm:ss'),
-            log.channel,
-            log.recipient,
-            log.subject || '',
-            log.status,
-            log.error || ''
-        ]);
+    const exportToCSV = async () => {
+        setIsExporting(true);
+        const exportedLogs: MessageLogRow[] = [];
+        let offset = 0;
+        try {
+            while (true) {
+                const response = await fetch(
+                    `/api/admin/messaging/logs?${buildParams(100, offset).toString()}`
+                );
+                if (!response.ok) throw new Error('Failed to export messaging logs');
+                const data = await response.json();
+                const batch: MessageLogRow[] = data.logs || [];
+                exportedLogs.push(...batch);
+                offset += batch.length;
+                if (batch.length === 0 || offset >= data.total) break;
+            }
 
-        const csvContent = [headers, ...rows]
-            .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-            .join('\n');
+            const headers = ['Date', 'Channel', 'Recipient', 'Subject', 'Status', 'Error'];
+            const rows = exportedLogs.map(log => [
+                format(new Date(log.createdAt), 'yyyy-MM-dd HH:mm:ss'),
+                log.channel,
+                log.recipient,
+                log.subject || '',
+                log.status,
+                log.error || ''
+            ]);
 
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `messaging-logs-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-        a.click();
+            const csvContent = [headers, ...rows]
+                .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+                .join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `messaging-logs-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Failed to export logs:', error);
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     // Skeleton loader
@@ -252,11 +268,11 @@ export function MessagingLogs() {
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={exportToCSV}
-                                            disabled={filteredLogs.length === 0}
+                                            onClick={() => void exportToCSV()}
+                                            disabled={total === 0 || isExporting}
                                         >
                                             <Download className="h-4 w-4 mr-2" />
-                                            Export
+                                            {isExporting ? 'Export…' : 'Export'}
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>{t.messaging.ui.exportCsv}</TooltipContent>
@@ -354,7 +370,7 @@ export function MessagingLogs() {
                                             <SkeletonRow />
                                             <SkeletonRow />
                                         </>
-                                    ) : paginatedLogs.length === 0 ? (
+                                    ) : logs.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={6} className="text-center py-12">
                                                 <div className="flex flex-col items-center gap-3 text-slate-500">
@@ -368,7 +384,7 @@ export function MessagingLogs() {
                                         </TableRow>
                                     ) : (
                                         <AnimatePresence>
-                                            {paginatedLogs.map((log, index) => (
+                                            {logs.map((log, index) => (
                                                 <motion.tr
                                                     key={log.id}
                                                     initial={{ opacity: 0, y: 10 }}
@@ -437,10 +453,10 @@ export function MessagingLogs() {
                         </div>
 
                         {/* Pagination */}
-                        {!isLoading && filteredLogs.length > itemsPerPage && (
+                        {!isLoading && total > itemsPerPage && (
                             <div className="flex items-center justify-between pt-4">
                                 <p className="text-sm text-slate-500">
-                                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredLogs.length)} of {filteredLogs.length} entries
+                                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, total)} of {total} entries
                                 </p>
                                 <div className="flex items-center gap-2">
                                     <Button
