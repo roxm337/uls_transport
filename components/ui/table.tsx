@@ -8,7 +8,8 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto scrollbar-hide"
+      tabIndex={0}
+      className="relative w-full overflow-x-auto rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/45 focus-visible:ring-inset"
     >
       <table
         data-slot="table"
@@ -23,7 +24,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-    className={cn("bg-[#f7f8f5] [&_tr]:border-b", className)}
+      className={cn("bg-[#f7f8f5] [&_tr]:border-b", className)}
       {...props}
     />
   )

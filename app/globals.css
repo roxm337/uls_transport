@@ -229,7 +229,13 @@ a,
 
 @media (min-width: 768px) {
   .admin-main {
-    padding: 2rem 2.25rem 3rem;
+    padding: 1.75rem 2rem 3rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .admin-main {
+    padding-inline: 2.5rem;
   }
 }
 

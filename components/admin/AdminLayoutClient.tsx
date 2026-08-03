@@ -67,7 +67,7 @@ export function AdminLayoutClient({
     if (!mounted) {
         return (
             <div className="admin-shell flex min-h-screen font-sans invisible">
-                <div className="min-w-0 flex-1 md:ml-[17rem] transition-all duration-300 ease-in-out">
+                <div className="min-w-0 flex-1 lg:ml-[17rem] transition-all duration-300 ease-in-out">
                     <main className="admin-main">
                         {children}
                     </main>
@@ -87,7 +87,7 @@ export function AdminLayoutClient({
                 />
 
                 {/* Main Content */}
-                <div className="min-w-0 flex-1 md:ml-[17rem] transition-all duration-300 ease-in-out">
+                <div className="min-w-0 flex-1 lg:ml-[17rem] transition-all duration-300 ease-in-out">
                     <AdminHeader
                         onMobileMenuClick={() => setIsMobileSidebarOpen(true)}
                         account={account}

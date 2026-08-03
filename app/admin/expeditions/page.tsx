@@ -19,6 +19,7 @@ import {
 import { ExpeditionDialog } from '@/components/admin/ExpeditionDialog';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 import { RowActions } from '@/components/admin/RowActions';
+import { OperationsMetricRail, OperationsPageHeader } from '@/components/admin/OperationsPage';
 import { useAdminRole } from '@/components/admin/AdminLayoutClient';
 import { useLanguage } from '@/lib/i18n/context';
 import { Pagination } from '@/components/admin/Pagination';
@@ -100,52 +101,44 @@ function ExpeditionsContent() {
 
     return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="text-2xl font-black tracking-tight text-ink-950">{t.expeditions.title}</h1>
-                    <p className="text-sm text-slate-500">
+            <OperationsPageHeader
+                code="OPS / FRET"
+                title={t.expeditions.title}
+                description={
+                    <>
                         {clientId
                             ? <>{t.expeditions.forClient(clientName ?? t.expeditions.thisClient)} <Link href="/admin/expeditions" className="underline">{t.expeditions.seeAllLink}</Link></>
                             : t.expeditions.subtitle}
-                    </p>
-                </div>
-                <Button onClick={() => setDialogOpen(true)}
-                    className="bg-brand-500 text-ink-950 hover:bg-brand-400 gap-2 shrink-0">
+                    </>
+                }
+                actions={
+                <Button onClick={() => setDialogOpen(true)} variant="signal">
                     <Plus className="h-4 w-4" /> {t.expeditions.new}
                 </Button>
-            </div>
+                }
+            />
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {[
+            <OperationsMetricRail
+                loading={loading}
+                items={[
                     { label: t.expeditions.totalCard, value: totals.all, icon: Package },
                     { label: t.expeditions.activeCard, value: totals.active, icon: Truck },
                     { label: t.expeditions.deliveredCard, value: totals.delivered, icon: CheckCircle2 },
-                ].map(card => (
-                    <Card key={card.label} className="border-slate-200">
-                        <CardContent className="flex items-center gap-3 p-4">
-                            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-ink-950">
-                                <card.icon className="h-5 w-5 text-brand-500" />
-                            </span>
-                            <div>
-                                <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
-                                    {card.label}
-                                </p>
-                                <p className="text-xl font-bold text-ink-950">
-                                    {loading ? '—' : card.value}
-                                </p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
+                ]}
+            />
 
-            <Card className="border-slate-200">
+            <Card className="overflow-hidden border-ink-950/[0.08] py-0">
                 <CardContent className="p-4 space-y-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div
+                        className="flex flex-col gap-3 border-b border-ink-950/[0.07] pb-4 sm:flex-row sm:items-center"
+                        role="search"
+                        aria-label={t.expeditions.searchPlaceholder}
+                    >
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                             <Input value={search} onChange={e => setSearch(e.target.value)}
                                 placeholder={t.expeditions.searchPlaceholder}
+                                aria-label={t.expeditions.searchPlaceholder}
                                 className="pl-9 bg-white" />
                         </div>
 
@@ -174,15 +167,16 @@ function ExpeditionsContent() {
                         </Select>
 
                         <Button variant="outline" className="bg-white shrink-0"
-                            onClick={() => void load()} disabled={loading}>
+                            onClick={() => void load()} disabled={loading}
+                            aria-label={t.common.refresh} title={t.common.refresh}>
                             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                         </Button>
                     </div>
 
-                    <div className="rounded-lg border border-slate-200 overflow-x-auto">
+                    <div className="overflow-hidden rounded-xl border border-ink-950/[0.08]">
                         <Table>
                             <TableHeader>
-                                <TableRow className="bg-slate-50">
+                                <TableRow>
                                     <TableHead>{t.expeditions.table.reference}</TableHead>
                                     <TableHead>{t.expeditions.table.client}</TableHead>
                                     <TableHead>{t.expeditions.table.service}</TableHead>

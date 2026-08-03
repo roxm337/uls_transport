@@ -64,7 +64,7 @@ export function AdminHeader({ onMobileMenuClick, account, role }: AdminHeaderPro
     return (
         <header className="sticky top-0 z-30 flex h-[4.5rem] items-center gap-4 border-b border-ink-950/[0.07] bg-white/85 px-4 shadow-[0_1px_0_rgba(255,255,255,.8)] backdrop-blur-xl md:px-8">
             {/* Mobile Menu Button */}
-            <div className="flex items-center gap-2 md:hidden">
+            <div className="flex items-center gap-2 lg:hidden">
                 <Button variant="ghost" size="icon" onClick={onMobileMenuClick} aria-label={t.header.openNav}>
                     <Menu className="h-5 w-5" />
                 </Button>
@@ -73,7 +73,7 @@ export function AdminHeader({ onMobileMenuClick, account, role }: AdminHeaderPro
                 </span>
             </div>
 
-            <div className="hidden min-w-0 items-center gap-2 md:flex">
+            <div className="hidden min-w-0 items-center gap-2 lg:flex">
                 <span className="text-xs font-medium text-slate-400">ULS</span>
                 <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
                 <span className="truncate text-sm font-semibold text-ink-950">{currentSection}</span>

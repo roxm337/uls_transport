@@ -133,7 +133,7 @@ export function AdminSidebar({ role, allowedSections, isMobileOpen, onMobileClos
     return (
         <>
             {/* Desktop Sidebar */}
-            <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[17rem] border-r border-white/10 bg-ink-950 shadow-[10px_0_40px_rgba(10,10,10,.06)] md:block">
+            <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[17rem] border-r border-white/10 bg-ink-950 shadow-[10px_0_40px_rgba(10,10,10,.06)] lg:block">
                 <SidebarContent role={role} allowedSections={allowedSections} />
             </aside>
 
