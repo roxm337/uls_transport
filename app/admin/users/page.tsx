@@ -475,26 +475,13 @@ export default function UsersPage() {
                                                     <TableCell>
                                                         <span className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${user.status === 'ACTIVE'
                                                             ? 'bg-green-50 text-green-700 border-green-200'
-                                                            : user.status === 'PENDING'
-                                                                ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                                                                : 'bg-red-50 text-red-700 border-red-200'
+                                                            : 'bg-red-50 text-red-700 border-red-200'
                                                             }`}>
                                                             {user.status || 'ACTIVE'}
                                                         </span>
                                                     </TableCell>
                                                     <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{user.createdAt}</TableCell>
                                                     <TableCell className="text-right space-x-1 sm:space-x-2">
-                                                        {user.status === 'PENDING' && (
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="hover:bg-green-50 hover:text-green-600 text-green-600 transition-colors h-8 w-8 p-0 sm:h-9 sm:w-9"
-                                                                onClick={() => handleStatusChange(user.id, 'ACTIVE')}
-                                                                title={t.users.approve}
-                                                            >
-                                                                <Check className="h-4 w-4" />
-                                                            </Button>
-                                                        )}
                                                         {user.status === 'ACTIVE' && user.role !== 'ADMIN' && (
                                                             <Button
                                                                 variant="ghost"

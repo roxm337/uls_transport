@@ -17,7 +17,7 @@ const SEED_DEMO_DATA = process.env.SEED_DEMO_DATA !== 'false'
 
 /** Mirrors AVAILABLE_SECTIONS in ManagerPermissions.tsx. */
 const MANAGER_SECTIONS = [
-    '/admin', '/admin/clients', '/admin/expeditions', '/admin/analytics', '/admin/messaging',
+    '/admin', '/admin/clients', '/admin/expeditions', '/admin/analytics', '/admin/messaging', '/admin/settings',
 ]
 
 const PLACEHOLDER_PASSWORDS = new Set([

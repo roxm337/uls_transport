@@ -3,8 +3,8 @@ import { prisma } from '@/lib/db';
 /** The only two roles this CRM has. Anything else is rejected on write. */
 export const STAFF_ROLES: string[] = ['ADMIN', 'MANAGER'];
 
-/** Account lifecycle states recognised by the session resolver. */
-export const STAFF_STATUSES: string[] = ['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED'];
+/** An internal account is either usable or deliberately suspended. */
+export const STAFF_STATUSES: string[] = ['ACTIVE', 'SUSPENDED'];
 
 /**
  * True when `userId` is the only ADMIN who can still sign in.

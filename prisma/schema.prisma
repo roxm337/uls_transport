@@ -156,7 +156,8 @@ model User {
   allowedSections Json?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
-  status          String      @default("PENDING")
+  /// ACTIVE | SUSPENDED
+  status          String      @default("ACTIVE")
   logo            String?
   actions         ActionLog[]
 }
@@ -262,4 +263,3 @@ model MessageLog {
   @@index([createdAt])
   @@index([templateId])
 }
-

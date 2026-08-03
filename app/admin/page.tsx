@@ -3,15 +3,11 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { ArrowRight, ArrowUpRight, Plus } from 'lucide-react';
 import {
-    Building2, CheckCircle2, Euro, Package, ArrowRight, Plus, Activity, Route,
-} from 'lucide-react';
-import {
-    ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-    PieChart, Pie, Cell, Legend,
+    ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
+    CartesianGrid, Cell,
 } from 'recharts';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EXPEDITION_STATUS_STYLES, formatEuros } from '@/lib/crm';
 import { useLanguage } from '@/lib/i18n/context';
 import { Button } from '@/components/ui/button';
@@ -32,8 +28,13 @@ interface Analytics {
         byService: { name: string; value: number }[];
     };
     recentExpeditions: {
-        id: string; reference: string; client: string; service: string;
-        status: string; statusLabel: string; createdAt: string;
+        id: string;
+        reference: string;
+        client: string;
+        service: string;
+        status: string;
+        statusLabel: string;
+        createdAt: string;
     }[];
 }
 
@@ -42,235 +43,355 @@ export default function AdminDashboardPage() {
     const { account } = useAdminContext();
     const [data, setData] = React.useState<Analytics | null>(null);
     const [loading, setLoading] = React.useState(true);
+    const [failed, setFailed] = React.useState(false);
 
-    React.useEffect(() => {
-        fetch('/api/admin/analytics', { cache: 'no-store' })
-            .then(res => res.ok ? res.json() : Promise.reject(new Error('failed')))
+    const load = React.useCallback(() => {
+        setLoading(true);
+        setFailed(false);
+        requestAnalytics()
             .then(setData)
-            .catch(err => console.error('Failed to load analytics', err))
+            .catch(error => {
+                console.error('Failed to load analytics', error);
+                setFailed(true);
+            })
             .finally(() => setLoading(false));
     }, []);
 
+    React.useEffect(() => {
+        let active = true;
+        requestAnalytics()
+            .then(result => {
+                if (active) setData(result);
+            })
+            .catch(error => {
+                if (active) {
+                    console.error('Failed to load analytics', error);
+                    setFailed(true);
+                }
+            })
+            .finally(() => {
+                if (active) setLoading(false);
+            });
+
+        return () => { active = false; };
+    }, []);
+
     const kpis = data?.kpis;
-
-    // Slice names are re-labelled client-side; the API sends French.
-    const statusSlices = (data?.charts.byStatus ?? []).map(s => ({
-        ...s,
-        name: t.crm.expeditionStatus[s.status] ?? s.name,
+    const statusSlices = (data?.charts.byStatus ?? []).map(status => ({
+        ...status,
+        name: t.crm.expeditionStatus[status.status] ?? status.name,
     }));
-
-    const cards = [
-        { label: t.dashboard.clients, value: kpis?.totalClients, hint: t.dashboard.clientsHint(kpis?.activeClients ?? 0), icon: Building2 },
-        { label: t.dashboard.expeditions, value: kpis?.totalExpeditions, hint: t.dashboard.expeditionsHint(kpis?.activeExpeditions ?? 0), icon: Package },
-        { label: t.dashboard.deliveredThisMonth, value: kpis?.deliveredThisMonth, hint: t.dashboard.deliveredHint, icon: CheckCircle2 },
-        {
-            label: t.dashboard.revenueThisMonth,
-            value: kpis ? formatEuros(kpis.revenueThisMonth, t.locale) : undefined,
-            hint: t.dashboard.revenueHint,
-            icon: Euro,
-        },
-    ];
+    const statusTotal = statusSlices.reduce((sum, status) => sum + status.value, 0);
+    const serviceMax = data?.charts.byService[0]?.value || 1;
+    const today = new Intl.DateTimeFormat(t.locale, {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    }).format(new Date());
 
     return (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <section className="route-grid relative overflow-hidden rounded-[1.5rem] bg-ink-950 px-5 py-6 text-white shadow-[0_20px_55px_rgba(10,10,10,.16)] sm:px-7 sm:py-7">
-                <div className="absolute inset-x-0 bottom-0 h-1 route-dashes opacity-90" />
-                <div className="absolute -right-12 -top-14 h-52 w-52 rounded-full border border-white/[0.06]" />
-                <div className="absolute -right-2 -top-2 h-28 w-28 rounded-full border border-white/[0.06]" />
-                <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-                    <div>
-                        <div className="mb-3 flex items-center gap-2">
-                            <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.8)]" />
-                                {t.dashboard.live}
-                            </span>
-                        </div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">{t.dashboard.eyebrow}</p>
-                        <h1 className="mt-1.5 max-w-2xl text-2xl font-bold tracking-[-0.025em] text-white sm:text-3xl">
-                            {t.dashboard.greeting(account?.name?.split(' ')[0] ?? null)}
-                            <span className="block text-white/55">{t.dashboard.greetingSub}</span>
-                        </h1>
+        <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: 'easeOut' }}
+            className="space-y-8"
+        >
+            <header className="flex flex-col gap-5 border-b border-ink-950/10 pb-7 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <div className="mb-3 flex items-center gap-3">
+                        <span className="h-px w-8 bg-brand-600" />
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink-500">
+                            {t.dashboard.controlTitle}
+                        </p>
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            {t.dashboard.liveShort}
+                        </span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                        <Button asChild variant="outline" className="border-white/15 bg-white/[0.06] text-white hover:border-white/25 hover:bg-white/10 hover:text-white">
+                    <h1 className="max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-ink-950 sm:text-4xl lg:text-[2.8rem] lg:leading-[1.05]">
+                        {t.dashboard.greeting(account?.name?.split(' ')[0] ?? null)}
+                        <span className="ml-2 text-ink-950/35">{t.dashboard.shiftReady}</span>
+                    </h1>
+                    <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+                        {t.dashboard.controlSubtitle}
+                    </p>
+                </div>
+
+                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center lg:flex-col lg:items-end">
+                    <time suppressHydrationWarning className="text-xs font-medium capitalize text-slate-400">
+                        {today}
+                    </time>
+                    <div className="flex gap-2">
+                        <Button asChild variant="outline" className="h-10 rounded-full border-ink-950/15 bg-transparent px-4 shadow-none">
                             <Link href="/admin/expeditions">
-                                <Route className="h-4 w-4 text-brand-500" /> {t.dashboard.seeFlows}
+                                {t.dashboard.seeFlows} <ArrowRight className="h-3.5 w-3.5" />
                             </Link>
                         </Button>
-                        <Button asChild className="bg-brand-500 text-ink-950 shadow-[0_8px_24px_rgba(253,231,24,.2)] hover:bg-brand-400">
+                        <Button asChild className="h-10 rounded-full bg-ink-950 px-4 text-white shadow-none hover:bg-ink-800">
                             <Link href="/admin/expeditions?new=1">
-                                <Plus className="h-4 w-4" /> {t.dashboard.newExpedition}
+                                <Plus className="h-3.5 w-3.5 text-brand-500" /> {t.dashboard.newExpedition}
                             </Link>
                         </Button>
                     </div>
                 </div>
-            </section>
+            </header>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {cards.map(card => (
-                    <Card key={card.label} className="group relative overflow-hidden transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_38px_rgba(10,10,10,.07)]">
-                        <span className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-brand-500 via-brand-400 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
-                            <CardTitle className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
-                                {card.label}
-                            </CardTitle>
-                            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink-950 shadow-[0_6px_16px_rgba(10,10,10,.12)]">
-                                <card.icon className="h-4 w-4 text-brand-500" strokeWidth={2.2} />
-                            </span>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-3xl font-bold tracking-[-0.035em] text-ink-950 tabular-nums">
-                                {loading || card.value === undefined ? '—' : card.value}
-                            </p>
-                            <p className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
-                                <Activity className="h-3 w-3 text-slate-300" /> {card.hint}
-                            </p>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
+            {failed ? (
+                <DashboardError onRetry={load} />
+            ) : (
+                <>
+                    <section aria-label={t.dashboard.operationalPulse} className="overflow-hidden rounded-[1.25rem] border border-ink-950/10 bg-white shadow-[0_12px_40px_rgba(10,10,10,.045)]">
+                        <div className="grid lg:grid-cols-[1.25fr_1fr]">
+                            <div className="relative min-h-64 overflow-hidden bg-ink-950 p-6 text-white sm:p-8">
+                                <div className="absolute inset-y-0 right-[14%] w-px rotate-[24deg] bg-white/10" />
+                                <div className="absolute inset-x-0 bottom-6 h-px bg-white/10">
+                                    <span className="absolute left-0 top-[-2px] h-[5px] w-2/5 bg-brand-500" />
+                                </div>
+                                <div className="relative flex h-full flex-col justify-between gap-8">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/45">
+                                            {t.dashboard.operationalPulse}
+                                        </p>
+                                        <span className="font-mono text-[10px] tracking-[0.18em] text-brand-500">OPS / LIVE</span>
+                                    </div>
+                                    <div>
+                                        <p className="font-mono text-[clamp(4rem,9vw,7.25rem)] font-medium leading-none tracking-[-0.09em] text-white tabular-nums">
+                                            {metricValue(loading, kpis?.activeExpeditions)}
+                                        </p>
+                                        <p className="mt-3 max-w-sm text-lg font-medium tracking-[-0.02em] text-white/90">
+                                            {t.dashboard.inProgress}
+                                        </p>
+                                    </div>
+                                    <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-white/45">
+                                        {kpis ? t.dashboard.recordedTotal(kpis.totalExpeditions) : '—'}
+                                    </p>
+                                </div>
+                            </div>
 
-            <div className="grid gap-6 lg:grid-cols-3">
-                <Card className="lg:col-span-2">
-                    <CardHeader className="pb-2">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Volume</p>
-                        <CardTitle className="text-base">{t.dashboard.monthlyChart}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-[280px]">
-                        {data && data.charts.monthly.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={data.charts.monthly}>
-                                    <CartesianGrid strokeDasharray="2 5" stroke="#e5e7e2" vertical={false} />
-                                    <XAxis dataKey="name" tickLine={false} axisLine={false}
-                                        tick={{ fontSize: 12, fill: '#676767' }} />
-                                    <YAxis allowDecimals={false} tickLine={false} axisLine={false}
-                                        tick={{ fontSize: 12, fill: '#676767' }} />
-                                    <Tooltip
-                                        cursor={{ fill: 'rgba(253,231,24,0.12)' }}
-                                        contentStyle={{ borderRadius: 12, border: '1px solid #e5e7e2', fontSize: 12, boxShadow: '0 12px 28px rgba(10,10,10,.09)' }}
-                                    />
-                                    <Bar dataKey="expeditions" name={t.dashboard.expeditions}
-                                        fill="#fde718" stroke="#0a0a0a" strokeWidth={1} radius={[6, 6, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <Empty loading={loading} />
-                        )}
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="pb-2">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Répartition</p>
-                        <CardTitle className="text-base">{t.dashboard.byStatus}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-[280px]">
-                        {data && data.charts.byStatus.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie data={statusSlices} dataKey="value" nameKey="name"
-                                        innerRadius={50} outerRadius={80} paddingAngle={2}>
-                                        {statusSlices.map(entry => (
-                                            <Cell key={entry.name} fill={entry.color} stroke="#fff" strokeWidth={2} />
-                                        ))}
-                                    </Pie>
-                                    <Legend verticalAlign="bottom" height={36}
-                                        wrapperStyle={{ fontSize: 11 }} />
-                                    <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e5e7e2', fontSize: 12, boxShadow: '0 12px 28px rgba(10,10,10,.09)' }} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <Empty loading={loading} />
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-                <Card>
-                    <CardHeader className="pb-2">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">Demande</p>
-                        <CardTitle className="text-base">{t.dashboard.topServices}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {data && data.charts.byService.length > 0 ? (
-                            <ul className="space-y-3">
-                                {data.charts.byService.slice(0, 6).map(s => {
-                                    const max = data.charts.byService[0].value || 1;
-                                    return (
-                                        <li key={s.name}>
-                                            <div className="mb-1 flex items-center justify-between text-sm">
-                                                <span className="text-slate-700">{s.name}</span>
-                                                <span className="font-semibold text-ink-950">{s.value}</span>
-                                            </div>
-                                            <div className="h-1.5 rounded-full bg-slate-100">
-                                                <div className="h-1.5 rounded-full bg-gradient-to-r from-brand-600 to-brand-400"
-                                                    style={{ width: `${(s.value / max) * 100}%` }} />
-                                            </div>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        ) : (
-                            <p className="py-8 text-center text-sm text-slate-500">
-                                {loading ? t.common.loading : t.dashboard.noExpeditions}
-                            </p>
-                        )}
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <div>
-                            <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">{t.dashboard.realtime}</p>
-                            <CardTitle className="text-base">{t.dashboard.recent}</CardTitle>
+                            <div className="grid sm:grid-cols-3 lg:grid-cols-1">
+                                <PulseMetric
+                                    code="LIV"
+                                    label={t.dashboard.deliveredThisMonth}
+                                    value={metricValue(loading, kpis?.deliveredThisMonth)}
+                                    detail={t.dashboard.deliveredHint}
+                                />
+                                <PulseMetric
+                                    code="CA"
+                                    label={t.dashboard.revenueThisMonth}
+                                    value={loading || !kpis ? '—' : formatEuros(kpis.revenueThisMonth, t.locale)}
+                                    detail={t.dashboard.revenueHint}
+                                />
+                                <PulseMetric
+                                    code="CLI"
+                                    label={t.dashboard.activePortfolio}
+                                    value={metricValue(loading, kpis?.activeClients)}
+                                    detail={kpis ? t.dashboard.clientRatio(kpis.activeClients, kpis.totalClients) : '—'}
+                                />
+                            </div>
                         </div>
-                        <Link href="/admin/expeditions"
-                            className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-ink-950">
-                            {t.common.seeAll} <ArrowRight className="h-3 w-3" />
-                        </Link>
-                    </CardHeader>
-                    <CardContent>
-                        {data && data.recentExpeditions.length > 0 ? (
-                            <ul className="divide-y divide-slate-100">
-                                {data.recentExpeditions.map(e => (
-                                    <li key={e.id} className="flex items-center justify-between gap-3 py-2.5">
-                                        <div className="min-w-0">
-                                            <Link href={`/admin/expeditions/${e.id}`}
-                                                className="font-mono text-xs font-semibold text-ink-950 hover:underline">
-                                                {e.reference}
-                                            </Link>
-                                            <p className="truncate text-xs text-slate-500">
-                                                {e.client} · {e.service}
-                                            </p>
-                                        </div>
-                                        <Badge variant="outline"
-                                            className={`shrink-0 text-[10px] ${EXPEDITION_STATUS_STYLES[e.status] ?? ''}`}>
-                                            {t.crm.expeditionStatus[e.status] ?? e.statusLabel}
-                                        </Badge>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <p className="py-8 text-center text-sm text-slate-500">
-                                {loading ? t.common.loading : t.dashboard.noExpeditions}
-                            </p>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
+                    </section>
+
+                    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(19rem,.75fr)]">
+                        <DashboardSection
+                            eyebrow={t.dashboard.sixMonths}
+                            title={t.dashboard.monthlyChart}
+                            aside={data ? t.dashboard.volumeTotal(data.charts.monthly.reduce((sum, month) => sum + month.expeditions, 0)) : '—'}
+                        >
+                            <div className="h-[290px] pt-5">
+                                {data && data.charts.monthly.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={data.charts.monthly} barCategoryGap="34%">
+                                            <CartesianGrid stroke="#eceee9" vertical={false} strokeDasharray="1 0" />
+                                            <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#7b7b75' }} dy={10} />
+                                            <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={24} tick={{ fontSize: 10, fill: '#9a9a94' }} />
+                                            <Tooltip
+                                                cursor={{ fill: 'rgba(10,10,10,.025)' }}
+                                                contentStyle={{ borderRadius: 8, border: '1px solid #dedfd9', fontSize: 12, boxShadow: '0 10px 30px rgba(10,10,10,.08)' }}
+                                            />
+                                            <Bar dataKey="expeditions" name={t.dashboard.expeditions} radius={[3, 3, 0, 0]}>
+                                                {data.charts.monthly.map((month, index) => (
+                                                    <Cell
+                                                        key={month.name}
+                                                        fill={index === data.charts.monthly.length - 1 ? '#fde718' : '#1f1f1f'}
+                                                    />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : <Empty loading={loading} />}
+                            </div>
+                        </DashboardSection>
+
+                        <DashboardSection eyebrow={t.dashboard.flowState} title={t.dashboard.byStatus}>
+                            {data && statusSlices.length > 0 ? (
+                                <div className="pt-5">
+                                    <div className="mb-6 flex h-2.5 overflow-hidden rounded-full bg-slate-100" aria-label={t.dashboard.statusDistribution}>
+                                        {statusSlices.map(status => (
+                                            <span
+                                                key={status.status}
+                                                title={`${status.name}: ${status.value}`}
+                                                style={{ width: `${(status.value / statusTotal) * 100}%`, backgroundColor: status.color }}
+                                            />
+                                        ))}
+                                    </div>
+                                    <ul className="divide-y divide-ink-950/[0.07]">
+                                        {statusSlices.map(status => (
+                                            <li key={status.status} className="flex items-center gap-3 py-3">
+                                                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: status.color }} />
+                                                <span className="min-w-0 flex-1 text-sm text-slate-600">{status.name}</span>
+                                                <span className="font-mono text-sm font-semibold text-ink-950 tabular-nums">{status.value}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ) : <div className="h-[290px]"><Empty loading={loading} /></div>}
+                        </DashboardSection>
+                    </div>
+
+                    <div className="grid gap-6 xl:grid-cols-[minmax(18rem,.72fr)_minmax(0,1.28fr)]">
+                        <DashboardSection eyebrow={t.dashboard.demandRank} title={t.dashboard.topServices}>
+                            {data && data.charts.byService.length > 0 ? (
+                                <ol className="mt-5 divide-y divide-ink-950/[0.07]">
+                                    {data.charts.byService.slice(0, 6).map((service, index) => (
+                                        <li key={service.name} className="grid grid-cols-[2rem_1fr_auto] items-center gap-3 py-3.5">
+                                            <span className="font-mono text-[10px] text-slate-400">{String(index + 1).padStart(2, '0')}</span>
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-medium text-ink-800">{service.name}</p>
+                                                <div className="mt-2 h-px bg-slate-100">
+                                                    <div className="h-px bg-ink-950" style={{ width: `${(service.value / serviceMax) * 100}%` }} />
+                                                </div>
+                                            </div>
+                                            <span className="font-mono text-sm font-semibold tabular-nums text-ink-950">{service.value}</span>
+                                        </li>
+                                    ))}
+                                </ol>
+                            ) : <div className="h-52"><Empty loading={loading} /></div>}
+                        </DashboardSection>
+
+                        <DashboardSection
+                            eyebrow={t.dashboard.realtime}
+                            title={t.dashboard.recent}
+                            action={
+                                <Link href="/admin/expeditions" className="inline-flex items-center gap-1 text-xs font-semibold text-ink-600 hover:text-ink-950">
+                                    {t.common.seeAll} <ArrowUpRight className="h-3.5 w-3.5" />
+                                </Link>
+                            }
+                        >
+                            {data && data.recentExpeditions.length > 0 ? (
+                                <div className="mt-4">
+                                    <div className="hidden grid-cols-[7.5rem_minmax(0,1fr)_9rem_7rem] gap-4 border-y border-ink-950/10 py-2 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400 sm:grid">
+                                        <span>{t.dashboard.reference}</span>
+                                        <span>{t.dashboard.clientRoute}</span>
+                                        <span>{t.dashboard.status}</span>
+                                        <span className="text-right">{t.dashboard.created}</span>
+                                    </div>
+                                    <ul className="divide-y divide-ink-950/[0.07]">
+                                        {data.recentExpeditions.map(expedition => (
+                                            <li key={expedition.id}>
+                                                <Link
+                                                    href={`/admin/expeditions/${expedition.id}`}
+                                                    className="group grid gap-2 py-3.5 transition-colors hover:bg-brand-50/70 sm:grid-cols-[7.5rem_minmax(0,1fr)_9rem_7rem] sm:items-center sm:gap-4 sm:px-1"
+                                                >
+                                                    <span className="font-mono text-xs font-semibold text-ink-950 group-hover:underline">
+                                                        {expedition.reference}
+                                                    </span>
+                                                    <span className="min-w-0">
+                                                        <span className="block truncate text-sm font-medium text-ink-800">{expedition.client}</span>
+                                                        <span className="block truncate text-[11px] text-slate-400">{expedition.service}</span>
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-2 text-xs text-slate-600">
+                                                        <span className={`h-2 w-2 rounded-full border ${EXPEDITION_STATUS_STYLES[expedition.status] ?? ''}`} />
+                                                        {t.crm.expeditionStatus[expedition.status] ?? expedition.statusLabel}
+                                                    </span>
+                                                    <time className="text-left font-mono text-[10px] text-slate-400 sm:text-right">
+                                                        {formatShortDate(expedition.createdAt, t.locale)}
+                                                    </time>
+                                                </Link>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ) : <div className="h-52"><Empty loading={loading} /></div>}
+                        </DashboardSection>
+                    </div>
+                </>
+            )}
         </motion.div>
+    );
+}
+
+function PulseMetric({ code, label, value, detail }: {
+    code: string;
+    label: string;
+    value: string | number;
+    detail: string;
+}) {
+    return (
+        <div className="flex min-h-32 flex-col justify-between border-b border-ink-950/10 p-5 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 lg:border-b lg:border-r-0 lg:last:border-b-0">
+            <div className="flex items-start justify-between gap-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">{label}</p>
+                <span className="font-mono text-[9px] text-slate-300">{code}</span>
+            </div>
+            <div className="mt-5">
+                <p className="font-mono text-2xl font-semibold tracking-[-0.05em] text-ink-950 tabular-nums sm:text-[1.7rem]">{value}</p>
+                <p className="mt-1 text-[10px] leading-4 text-slate-400">{detail}</p>
+            </div>
+        </div>
+    );
+}
+
+function DashboardSection({ eyebrow, title, aside, action, children }: {
+    eyebrow: string;
+    title: string;
+    aside?: React.ReactNode;
+    action?: React.ReactNode;
+    children: React.ReactNode;
+}) {
+    return (
+        <section className="rounded-[1.1rem] border border-ink-950/10 bg-white p-5 shadow-[0_10px_32px_rgba(10,10,10,.035)] sm:p-6">
+            <header className="flex items-end justify-between gap-4">
+                <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">{eyebrow}</p>
+                    <h2 className="mt-1.5 text-lg font-semibold tracking-[-0.025em] text-ink-950">{title}</h2>
+                </div>
+                {action ?? (aside && <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-slate-400">{aside}</p>)}
+            </header>
+            {children}
+        </section>
+    );
+}
+
+function DashboardError({ onRetry }: { onRetry: () => void }) {
+    const { t } = useLanguage();
+    return (
+        <section className="border-y border-red-200 bg-red-50/60 px-4 py-8 text-center">
+            <p className="text-sm font-semibold text-red-800">{t.dashboard.loadFailed}</p>
+            <p className="mt-1 text-xs text-red-600">{t.dashboard.loadFailedHint}</p>
+            <Button variant="outline" size="sm" onClick={onRetry} className="mt-4 rounded-full border-red-200 bg-white text-red-700 hover:bg-red-50">
+                {t.dashboard.retry}
+            </Button>
+        </section>
     );
 }
 
 function Empty({ loading }: { loading: boolean }) {
     const { t } = useLanguage();
-
     return (
         <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-slate-500">
-                {loading ? t.common.loading : t.common.noData}
-            </p>
+            <p className="text-sm text-slate-400">{loading ? t.common.loading : t.common.noData}</p>
         </div>
     );
+}
+
+function metricValue(loading: boolean, value: number | undefined): string | number {
+    return loading || value === undefined ? '—' : value;
+}
+
+function formatShortDate(value: string, locale: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short' }).format(date);
+}
+
+function requestAnalytics(): Promise<Analytics> {
+    return fetch('/api/admin/analytics', { cache: 'no-store' })
+        .then(response => response.ok ? response.json() : Promise.reject(new Error('failed')));
 }
