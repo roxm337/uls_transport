@@ -29,29 +29,102 @@ model Client {
   country     String  @default("France")
 
   /// Prospect | Actif | Inactif | Suspendu
-  status      String  @default("Prospect")
+  status           String  @default("Prospect")
   /// JSON array of ULS service slugs the client has subscribed to.
-  services    String? @db.Text
+  services         String? @db.Text
   /// Staff member (User) owning the relationship.
   accountManagerId String?
   /// e.g. "30 jours fin de mois"
-  paymentTerms String?
-  notes        String? @db.Text
+  paymentTerms     String?
+  notes            String? @db.Text
+  /// Historical shipment volume declared in the CRM workbook. The source
+  /// contains aggregate counts, not shipment rows, so it must stay separate
+  /// from `expeditions` while still feeding the service-quality indicator.
+  declaredExpeditionCount Int @default(0)
 
   /// Whether this client receives the automatic transport notifications sent
   /// through the single ULS configuration. Off by default: a client is
   /// written to only once someone has said so.
   notificationsEnabled Boolean @default(false)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  contacts    ClientContact[]
-  expeditions Expedition[]
+  contacts      ClientContact[]
+  expeditions   Expedition[]
+  portalAccount ClientPortalAccount?
+  claims        ClientClaim[]
 
   @@index([status])
   @@index([accountManagerId])
   @@index([companyName])
+}
+
+/// One deliberately separate credential per client company. Keeping this in
+/// its own model prevents password hashes from ever entering the existing
+/// client list/detail API responses.
+model ClientPortalAccount {
+  id           String    @id @default(cuid())
+  clientId     String    @unique
+  email        String    @unique
+  passwordHash String
+  enabled      Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+}
+
+/// A client-visible after-sales case. Internal notes deliberately live beside,
+/// but separately from, the response that is shown in the client portal.
+model ClientClaim {
+  id              String    @id @default(cuid())
+  reference       String    @unique
+  clientId        String
+  expeditionId    String?
+  /// RECLAMATION | REMBOURSEMENT
+  type            String
+  /// RETARD | AVARIE | CASSE | PERTE
+  issueType       String    @default("RETARD")
+  subject         String
+  description     String    @db.Text
+  requestedAmount Decimal?  @db.Decimal(10, 2)
+  /// NOUVELLE | EN_COURS | INFO_REQUISE | ACCEPTEE | REFUSEE | RESOLUE
+  status          String    @default("NOUVELLE")
+  publicResponse  String?   @db.Text
+  internalNote    String?   @db.Text
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  expedition Expedition? @relation(fields: [expeditionId], references: [id], onDelete: SetNull)
+  documents  ClientClaimDocument[]
+
+  @@index([clientId, createdAt])
+  @@index([expeditionId])
+  @@index([status])
+  @@index([type])
+  @@index([issueType])
+}
+
+/// Evidence submitted for a litigation case. Files live outside `public/`;
+/// downloads always pass through an ownership/section authorization check.
+model ClientClaimDocument {
+  id           String   @id @default(cuid())
+  claimId      String
+  originalName String
+  storedName   String   @unique
+  mimeType     String
+  size         Int
+  createdAt    DateTime @default(now())
+
+  claim ClientClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  @@index([claimId, createdAt])
 }
 
 /// Additional named contacts at a client company.
@@ -67,22 +140,22 @@ model ClientContact {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
 }
 
 /// A transport job run for a client.
 model Expedition {
-  id        String  @id @default(cuid())
+  id        String @id @default(cuid())
   /// Human reference, e.g. ULS-2026-0001
-  reference String  @unique
+  reference String @unique
   clientId  String
 
   /// One of the ULS service slugs (see lib/brand.ts SERVICES).
-  service   String
+  service String
   /// Demandee | Planifiee | Enlevee | En transit | Livree | Annulee
-  status    String  @default("Demandee")
+  status  String @default("Demandee")
 
   pickupAddress    String?   @db.Text
   pickupPostalCode String?
@@ -101,14 +174,15 @@ model Expedition {
   temperature      String?
   vehicleType      String?
 
-  priceHt   Decimal? @db.Decimal(10, 2)
-  notes     String?  @db.Text
+  priceHt Decimal? @db.Decimal(10, 2)
+  notes   String?  @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  events    ExpeditionEvent[]
+  client Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  events ExpeditionEvent[]
+  claims ClientClaim[]
 
   @@index([clientId])
   @@index([status])
@@ -135,7 +209,7 @@ model ExpeditionEvent {
   userName       String?
   createdAt      DateTime @default(now())
 
-  expedition     Expedition @relation(fields: [expeditionId], references: [id], onDelete: Cascade)
+  expedition Expedition @relation(fields: [expeditionId], references: [id], onDelete: Cascade)
 
   @@index([expeditionId, createdAt])
 }
@@ -185,53 +259,53 @@ model ActionLog {
 ///
 /// Whether a given client is written to at all is `Client.notificationsEnabled`.
 model MessagingConfig {
-  id               String       @id @default(cuid())
+  id                 String       @id @default(cuid())
   /// Singleton guard: exactly one row can exist, always keyed "uls".
-  key              String       @unique @default("uls")
-  smtpEnabled      Boolean      @default(false)
-  smtpHost         String?
-  smtpPort         Int?
-  smtpUsername     String?
-  smtpPassword     String?      @db.Text
-  smtpEncryption   String?
-  smtpFromName     String?
-  smtpFromEmail    String?
-  whatsappEnabled  Boolean      @default(false)
-  whatsappProvider String?
-  whatsappApiKey   String?      @db.Text
-  whatsappApiUrl   String?
-  whatsappAutoSend Boolean      @default(false)
-  whatsappTimeout  Int          @default(0)
-  whatsappTemplate String?      @db.Text
-  smtpAutoSend     Boolean      @default(false)
-  smtpTimeout      Int          @default(0)
+  key                String       @unique @default("uls")
+  smtpEnabled        Boolean      @default(false)
+  smtpHost           String?
+  smtpPort           Int?
+  smtpUsername       String?
+  smtpPassword       String?      @db.Text
+  smtpEncryption     String?
+  smtpFromName       String?
+  smtpFromEmail      String?
+  whatsappEnabled    Boolean      @default(false)
+  whatsappProvider   String?
+  whatsappApiKey     String?      @db.Text
+  whatsappApiUrl     String?
+  whatsappAutoSend   Boolean      @default(false)
+  whatsappTimeout    Int          @default(0)
+  whatsappTemplate   String?      @db.Text
+  smtpAutoSend       Boolean      @default(false)
+  smtpTimeout        Int          @default(0)
   /// Operational ping to the ULS team on every shipment event.
-  staffNotifyEnabled  Boolean   @default(false)
-  staffNotifyPhone    String?
-  staffNotifyGroupId  String?
-  staffNotifyMode     String?   @default("phone")
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  messageLogs      MessageLog[]
+  staffNotifyEnabled Boolean      @default(false)
+  staffNotifyPhone   String?
+  staffNotifyGroupId String?
+  staffNotifyMode    String?      @default("phone")
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  messageLogs        MessageLog[]
 }
 
 model MessageTemplate {
-  id            String       @id @default(cuid())
-  name          String       @db.VarChar(255)
-  type          String
-  scope         String       @default("global")
-  clientId      String?
-  subject       String?      @db.VarChar(255)
-  content       String       @db.Text
-  category      String?
-  description   String?      @db.Text
-  status        String       @default("active")
-  isDefault     Boolean      @default(false)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  lastUsedAt    DateTime?
-  usageCount    Int          @default(0)
-  messageLogs   MessageLog[] @relation("TemplateUsage")
+  id          String       @id @default(cuid())
+  name        String       @db.VarChar(255)
+  type        String
+  scope       String       @default("global")
+  clientId    String?
+  subject     String?      @db.VarChar(255)
+  content     String       @db.Text
+  category    String?
+  description String?      @db.Text
+  status      String       @default("active")
+  isDefault   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  lastUsedAt  DateTime?
+  usageCount  Int          @default(0)
+  messageLogs MessageLog[] @relation("TemplateUsage")
 
   @@index([type])
   @@index([scope])

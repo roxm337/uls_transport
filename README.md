@@ -1,9 +1,9 @@
 # ULS Transport — CRM
 
 Outil interne de gestion des clients et des expéditions d'ULS Transport.
-Application Next.js (App Router) + Prisma + MySQL, accessible uniquement aux
-comptes `ADMIN` et `MANAGER`. Il n'y a pas d'espace client ni de site public :
-le site vitrine reste sur uls-transport.com.
+Application Next.js (App Router) + Prisma + MySQL avec console interne pour les
+comptes `ADMIN` et `MANAGER`, ainsi qu'un espace client séparé pour le suivi des
+expéditions et des réclamations. Le site vitrine reste sur uls-transport.com.
 
 ## Démarrage
 
@@ -11,7 +11,9 @@ le site vitrine reste sur uls-transport.com.
 pnpm install
 # renseigner .env.local (voir « Variables d'environnement »)
 pnpm db:push   # crée / synchronise le schéma
-pnpm seed      # comptes + jeu de données de démonstration
+pnpm seed      # comptes internes uniquement
+pnpm crm:import # contrôle à blanc de crm.xlsx
+pnpm crm:import:apply # importe les clients réels
 pnpm dev
 ```
 
@@ -28,11 +30,19 @@ L'application démarre sur http://localhost:3000 et redirige vers `/login`.
 | `pnpm db:migrate` | Applique les migrations `prisma/migrations` (**à utiliser sur une base existante**) |
 | `pnpm db:migrate:status` | État des migrations |
 | `pnpm db:studio` | Prisma Studio |
-| `pnpm seed` | Peuple la base (voir `prisma/seed.ts`) |
+| `pnpm seed` | Crée ou actualise les comptes internes, sans données de démonstration |
+| `pnpm crm:import` | Valide `crm.xlsx` et affiche les changements sans écrire |
+| `pnpm crm:import:apply` | Remplace les clients de démonstration et importe `crm.xlsx` |
 | `pnpm lint` | ESLint |
 
 Les scripts `db:*` et `seed` chargent `.env.local` via `node --env-file`,
 car la CLI Prisma ne lit que `.env`.
+
+L'import CRM conserve tout client qui ne correspond pas aux six noms de
+démonstration historiques. Les lignes du classeur sont identifiées par
+`société + SIRET + ville`, afin de conserver les différents sites d'une même
+entreprise. La colonne « EXPEDITIONS » ne contient que des nombres : ces
+compteurs sont conservés dans les notes clients, sans créer de faux transports.
 
 > **Sur une base qui contient déjà des données, utilisez `pnpm db:migrate`,
 > pas `pnpm db:push`.** La migration `20260731120000_single_uls_messaging_config`

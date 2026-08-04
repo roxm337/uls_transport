@@ -23,6 +23,7 @@ interface Section {
 const AVAILABLE_SECTIONS: Section[] = [
     { path: '/admin', label: 'Tableau de bord', description: 'Accès de base obligatoire' },
     { path: '/admin/clients', label: 'Clients', description: 'Consulter et gérer les clients' },
+    { path: '/admin/reclamations', label: 'Litiges & qualité de service', description: 'Traiter les litiges, justificatifs et résolutions' },
     { path: '/admin/expeditions', label: 'Expéditions', description: 'Consulter et gérer les expéditions' },
     { path: '/admin/analytics', label: 'Analytique', description: 'Consulter les statistiques' },
     { path: '/admin/messaging', label: 'Messagerie', description: 'Configuration e-mail et WhatsApp' },

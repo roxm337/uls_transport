@@ -12,7 +12,9 @@
     "db:migrate": "node --env-file=.env.local ./node_modules/prisma/build/index.js migrate deploy",
     "db:migrate:status": "node --env-file=.env.local ./node_modules/prisma/build/index.js migrate status",
     "db:studio": "node --env-file=.env.local ./node_modules/prisma/build/index.js studio",
-    "seed": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs prisma/seed.ts"
+    "seed": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs prisma/seed.ts",
+    "crm:import": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs scripts/import-crm.ts",
+    "crm:import:apply": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs scripts/import-crm.ts --apply"
   },
   "prisma": {
     "seed": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs prisma/seed.ts"

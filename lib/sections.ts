@@ -11,6 +11,7 @@
 export const ADMIN_SECTIONS = [
     '/admin',
     '/admin/clients',
+    '/admin/reclamations',
     '/admin/expeditions',
     '/admin/analytics',
     '/admin/messaging',
@@ -34,6 +35,7 @@ export const ADMIN_ONLY_SECTIONS: string[] = [
 export const DEFAULT_MANAGER_SECTIONS: string[] = [
     '/admin',
     '/admin/clients',
+    '/admin/reclamations',
     '/admin/expeditions',
     '/admin/messaging',
     '/admin/settings',
@@ -49,6 +51,7 @@ export const SECTION_LABELS: Record<string, string> = {
     '/admin': 'Tableau de bord',
     '/admin/clients': 'Clients',
     '/admin/expeditions': 'Expéditions',
+    '/admin/reclamations': 'Litiges & qualité de service',
     '/admin/analytics': 'Analytique',
     '/admin/messaging': 'Messagerie',
     '/admin/users': 'Équipe',

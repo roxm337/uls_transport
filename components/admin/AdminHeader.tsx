@@ -43,6 +43,7 @@ export function AdminHeader({ onMobileMenuClick, account, role }: AdminHeaderPro
     const sections = [
         ['/admin/clients', t.sidebar.clients],
         ['/admin/expeditions', t.sidebar.expeditions],
+        ['/admin/reclamations', t.sidebar.claims],
         ['/admin/analytics', t.sidebar.analytics],
         ['/admin/users', t.sidebar.team],
         ['/admin/messaging', t.sidebar.messaging],

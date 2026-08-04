@@ -13,6 +13,17 @@ import {
 } from '../lib/server/expedition-validation';
 import { resolveSections } from '../lib/sections';
 import { escapeHtml } from '../lib/utils';
+import { statusLabel, statusProgress } from '../lib/client-portal';
+import {
+    claimIssueTypeLabel,
+    claimStatusLabel,
+    claimTypeLabel,
+    formatClaimAmount,
+    isClaimStatus,
+    isClaimIssueType,
+    isClaimType,
+} from '../lib/claims';
+import { extractContact, mapCrmServices, normalizeCrmRow } from '../lib/server/crm-import';
 
 test('shipment status workflow allows only the next operational steps', () => {
     assert.deepEqual(allowedExpeditionTransitions('Demandee'), ['Planifiee', 'Annulee']);
@@ -58,4 +69,48 @@ test('HTML escaping neutralizes markup before a preview is rendered', () => {
         escapeHtml('<img src=x onerror="alert(1)">'),
         '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;'
     );
+});
+
+test('client portal progress follows the operational shipment workflow', () => {
+    assert.equal(statusProgress('Demandee'), 20);
+    assert.equal(statusProgress('En transit'), 80);
+    assert.equal(statusProgress('Livree'), 100);
+    assert.equal(statusProgress('Annulee'), 0);
+    assert.equal(statusLabel('Planifiee'), 'Planifiée');
+});
+
+test('client claim values are validated and presented without exposing storage keys', () => {
+    assert.equal(isClaimType('REMBOURSEMENT'), true);
+    assert.equal(isClaimType('OTHER'), false);
+    assert.equal(isClaimIssueType('RETARD'), true);
+    assert.equal(isClaimIssueType('VOL'), false);
+    assert.equal(isClaimStatus('INFO_REQUISE'), true);
+    assert.equal(isClaimStatus('PENDING'), false);
+    assert.equal(claimTypeLabel('RECLAMATION'), 'Réclamation');
+    assert.equal(claimIssueTypeLabel('AVARIE'), 'Avarie');
+    assert.equal(claimStatusLabel('ACCEPTEE'), 'Acceptée');
+    assert.match(formatClaimAmount(125.5), /125,50/);
+});
+
+test('real CRM rows normalize contacts, cities, and ULS service slugs', () => {
+    assert.deepEqual(
+        extractContact('DORINE BOURRON  dorine.bourron@orangina.com'),
+        { name: 'Dorine Bourron', email: 'dorine.bourron@orangina.com' }
+    );
+    assert.deepEqual(
+        mapCrmServices('Tournée régulière ; Véhicule + chauffeur; Frigorifique'),
+        ['tournees-regulieres', 'vehicules-avec-chauffeurs', 'transport-frigorifique']
+    );
+    const client = normalizeCrmRow({
+        rowNumber: 23,
+        company: 'ORANGINA',
+        siret: '407 512 938 00058',
+        contact: 'DORINE BOURRON  dorine.bourron@orangina.com',
+        city: 'LA COURNEUVE/la chapelle ',
+        services: 'Tournée régulière ; Véhicule + chauffeur; Frigorifique',
+        expeditionCount: 5,
+        status: 'Actif',
+    });
+    assert.equal(client.city, 'La Courneuve / La Chapelle');
+    assert.equal(client.expeditionCount, 5);
 });

@@ -161,6 +161,13 @@ export default function LoginPage() {
                             {loading ? <><Spinner size={18} className="text-white mr-2" />Connexion en cours...</> : <>Se connecter</>}
                         </button>
                     </form>
+
+                    <p className="mt-6 text-center text-sm text-zinc-500 lg:text-left">
+                        Vous êtes client ?{' '}
+                        <Link href="/espace-client/login" className="font-semibold text-ink-950 underline decoration-brand-500 decoration-2 underline-offset-4">
+                            Accéder au suivi de vos expéditions
+                        </Link>
+                    </p>
                 </div>
             </div>
         </div>

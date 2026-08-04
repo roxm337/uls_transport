@@ -108,6 +108,7 @@ const SECTION_LABEL_KEYS: Record<string, keyof ReturnType<typeof useLanguage>['t
     '/admin': 'dashboard',
     '/admin/clients': 'clients',
     '/admin/expeditions': 'expeditions',
+    '/admin/reclamations': 'claims',
     '/admin/analytics': 'analytics',
     '/admin/messaging': 'messaging',
     '/admin/users': 'team',

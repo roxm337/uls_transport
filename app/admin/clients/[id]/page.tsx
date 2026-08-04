@@ -33,6 +33,7 @@ import {
 } from '@/lib/services/clients';
 import { useAdminRole } from '@/components/admin/AdminLayoutClient';
 import { useLanguage } from '@/lib/i18n/context';
+import { ClientPortalAccess } from '@/components/admin/ClientPortalAccess';
 
 export default function ClientDetailPage() {
     const { t } = useLanguage();
@@ -164,6 +165,8 @@ export default function ClientDetailPage() {
                     )}
                 </div>
             </div>
+
+            {isAdmin && <ClientPortalAccess clientId={client.id} defaultEmail={client.email} />}
 
             <div className="grid gap-6 lg:grid-cols-3">
                 {/* Coordinates */}

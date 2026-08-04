@@ -49,7 +49,11 @@ next-env.d.ts
 prisma/dev.db
 plan.html
 planning/
-/scripts/
+# Local one-off scripts stay out; the CRM importer is a documented command
+# (`pnpm crm:import`), so it ships. The directory itself must stay unignored —
+# git cannot re-include a file whose parent directory is excluded.
+/scripts/*
+!/scripts/import-crm.ts
 *.gs
 data-export.json
 *.zip
@@ -60,6 +64,8 @@ dockerfile
 
 # uploads
 public/uploads/
+/storage/claims/
 test-smtp.js
 .claude/
 .impeccable/
+crm.xlsx

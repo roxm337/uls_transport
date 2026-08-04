@@ -14,6 +14,7 @@ import {
     History,
     MessageCircle,
     Radio,
+    FileWarning,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/lib/i18n/context';
@@ -46,6 +47,7 @@ function SidebarContent({ role, allowedSections, onItemClick }: { role?: string;
     const navItems = [
         { icon: LayoutDashboard, label: t.sidebar.dashboard, href: '/admin' },
         { icon: Building2, label: t.sidebar.clients, href: '/admin/clients' },
+        { icon: FileWarning, label: t.sidebar.claims, href: '/admin/reclamations' },
         { icon: Truck, label: t.sidebar.expeditions, href: '/admin/expeditions' },
         { icon: BarChart3, label: t.sidebar.analytics, href: '/admin/analytics' },
         { icon: UserCog, label: t.sidebar.team, href: '/admin/users' },

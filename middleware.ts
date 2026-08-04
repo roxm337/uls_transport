@@ -22,6 +22,16 @@ export async function middleware(req: NextRequest) {
         );
     }
 
+    if (pathname.startsWith('/espace-client') && !pathname.startsWith('/espace-client/login')) {
+        const token = req.cookies.get('client-auth-token')?.value;
+        const payload = token ? await verifyToken(token) : null;
+
+        if (!payload || payload.role !== 'CLIENT') {
+            return NextResponse.redirect(new URL('/espace-client/login', req.url));
+        }
+        return NextResponse.next();
+    }
+
     if (!pathname.startsWith('/admin')) {
         return NextResponse.next();
     }
@@ -50,5 +60,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-    matcher: ['/admin/:path*', '/api/:path*'],
+    matcher: ['/admin/:path*', '/espace-client/:path*', '/api/:path*'],
 };
