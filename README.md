@@ -111,9 +111,9 @@ fonctionne donc sans aucun compte.
 
 ```bash
 npx wrangler login
-npx wrangler r2 bucket create uls-transport-files --location=weur
+npx wrangler r2 bucket create uls-transport --location=weur
 # Autoriser le PUT direct depuis le navigateur (origines dans r2-cors.json) :
-npx wrangler r2 bucket cors set uls-transport-files --file r2-cors.json
+npx wrangler r2 bucket cors set uls-transport --file r2-cors.json
 ```
 
 Puis créer un jeton R2 (« Object Read & Write », limité à ce bucket) et
@@ -126,6 +126,23 @@ l'en-tête `Content-Security-Policy: sandbox`.
 
 Les documents enregistrés avant ce changement gardent un nom de fichier simple
 et restent lisibles : ils sont relus sous `claims/<nom>`, sans migration.
+
+## Limitation du débit
+
+Les compteurs vivent dans la table `RateLimit`, partagée par toutes les
+instances. Ils étaient auparavant en mémoire, ce qui ne limite que le processus
+qui les héberge : en serverless, chaque instance tenait son propre décompte, et
+la règle « 5 tentatives par 15 minutes » devenait 5 par instance — un attaquant
+retrouvant son quota à chaque nouvelle instance.
+
+L'incrément et l'expiration de la fenêtre tiennent en une seule instruction
+`INSERT … ON DUPLICATE KEY UPDATE`, afin que deux tentatives simultanées ne
+puissent pas lire le même compteur et écrire le même incrément.
+
+En cas d'échec de la requête, l'appel **passe** plutôt que d'être refusé : tous
+les appelants ont de toute façon besoin de la base (vérifier un mot de passe,
+écrire un dossier). Refuser transformerait une panne de base en blocage total
+sans rien protéger de plus.
 
 ## Domaine
 

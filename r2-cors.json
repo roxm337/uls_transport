@@ -3,7 +3,8 @@
     "AllowedOrigins": [
       "http://localhost:3000",
       "https://uls-transport.com",
-      "https://www.uls-transport.com"
+      "https://www.uls-transport.com",
+      "https://uls-transport.vercel.app"
     ],
     "AllowedMethods": ["PUT"],
     "AllowedHeaders": ["content-type"],

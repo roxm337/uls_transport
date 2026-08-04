@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
         // Check rate limit (5 attempts per 15 minutes)
         const identifier = `login:${ip}`;
-        const rateLimitResult = rateLimit(identifier);
+        const rateLimitResult = await rateLimit(identifier);
 
         if (!rateLimitResult.success) {
             // Log Rate Limit Exceeded
@@ -127,7 +127,7 @@ export async function POST(req: Request) {
         // records the same thing with the user attached.
 
         // Reset rate limit on successful login
-        resetRateLimit(identifier);
+        await resetRateLimit(identifier);
 
         return response;
 

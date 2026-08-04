@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     const session = await getClientSession();
     if (!session) return NextResponse.json({ error: 'Authentification requise.' }, { status: 401 });
 
-    const attempt = rateLimit(`client-claim:${session.clientId}`, 10, 60 * 60 * 1000);
+    const attempt = await rateLimit(`client-claim:${session.clientId}`, 10, 60 * 60 * 1000);
     if (!attempt.success) {
         return NextResponse.json(
             { error: 'Trop de demandes ont été créées. Réessayez plus tard.' },

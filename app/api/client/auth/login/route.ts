@@ -13,7 +13,7 @@ function requestIp(req: Request): string {
 export async function POST(req: Request) {
     const ip = requestIp(req);
     const identifier = `client-login:${ip}`;
-    const attempt = rateLimit(identifier, 5, 15 * 60 * 1000);
+    const attempt = await rateLimit(identifier, 5, 15 * 60 * 1000);
 
     if (!attempt.success) {
         return NextResponse.json(
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
             where: { id: account.id },
             data: { lastLoginAt: new Date() },
         });
-        resetRateLimit(identifier);
+        await resetRateLimit(identifier);
 
         const response = NextResponse.json({ success: true });
         response.cookies.set(CLIENT_COOKIE, token, {

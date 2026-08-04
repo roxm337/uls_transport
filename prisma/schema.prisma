@@ -29,18 +29,18 @@ model Client {
   country     String  @default("France")
 
   /// Prospect | Actif | Inactif | Suspendu
-  status           String  @default("Prospect")
+  status                  String  @default("Prospect")
   /// JSON array of ULS service slugs the client has subscribed to.
-  services         String? @db.Text
+  services                String? @db.Text
   /// Staff member (User) owning the relationship.
-  accountManagerId String?
+  accountManagerId        String?
   /// e.g. "30 jours fin de mois"
-  paymentTerms     String?
-  notes            String? @db.Text
+  paymentTerms            String?
+  notes                   String? @db.Text
   /// Historical shipment volume declared in the CRM workbook. The source
   /// contains aggregate counts, not shipment rows, so it must stay separate
   /// from `expeditions` while still feeding the service-quality indicator.
-  declaredExpeditionCount Int @default(0)
+  declaredExpeditionCount Int     @default(0)
 
   /// Whether this client receives the automatic transport notifications sent
   /// through the single ULS configuration. Off by default: a client is
@@ -100,8 +100,8 @@ model ClientClaim {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  expedition Expedition? @relation(fields: [expeditionId], references: [id], onDelete: SetNull)
+  client     Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  expedition Expedition?           @relation(fields: [expeditionId], references: [id], onDelete: SetNull)
   documents  ClientClaimDocument[]
 
   @@index([clientId, createdAt])
@@ -336,4 +336,20 @@ model MessageLog {
   @@index([status])
   @@index([createdAt])
   @@index([templateId])
+}
+
+/// Rate-limit counters, shared across instances.
+///
+/// An in-memory Map only limits the process it lives in: on serverless each
+/// instance kept its own tally, so a 5-attempt login limit became 5 per
+/// instance. The window is advanced with a single atomic upsert, so concurrent
+/// attempts cannot both read the same count and write the same increment.
+model RateLimit {
+  /// The bucket being limited, e.g. `login:203.0.113.4`. Named `id` rather
+  /// than `key`, which is reserved in MySQL.
+  id      String   @id @db.VarChar(191)
+  count   Int      @default(1)
+  resetAt DateTime
+
+  @@index([resetAt])
 }

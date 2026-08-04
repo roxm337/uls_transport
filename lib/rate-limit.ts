@@ -1,125 +1,100 @@
+import { prisma } from './db';
+
 /**
- * Rate Limiting Utility
- * 
- * Provides in-memory rate limiting for authentication endpoints to prevent brute-force attacks.
- * For production with multiple servers, consider using Redis for distributed rate limiting.
+ * Rate limiting, shared across instances.
+ *
+ * This used to be an in-memory `Map`, which limits only the process it lives
+ * in. On serverless that is close to no limit at all: every instance keeps its
+ * own tally, so a "5 attempts per 15 minutes" login rule becomes 5 per instance
+ * per 15 minutes, and an attacker gets a fresh allowance each time the platform
+ * spins up another one. The counters now live in the database every instance
+ * already shares.
  */
 
-interface RateLimitEntry {
-    count: number;
-    resetAt: number;
-}
-
-interface RateLimitResult {
+export interface RateLimitResult {
     success: boolean;
     limit: number;
     remaining: number;
+    /** Epoch milliseconds at which the current window ends. */
     reset: number;
 }
 
-// In-memory store for rate limit tracking
-const rateLimitStore = new Map<string, RateLimitEntry>();
+/** Roughly one call in two hundred also clears out expired rows. */
+const SWEEP_PROBABILITY = 0.005;
 
-// Cleanup expired entries every 5 minutes
-setInterval(() => {
-    const now = Date.now();
-    for (const [key, entry] of rateLimitStore.entries()) {
-        if (entry.resetAt < now) {
-            rateLimitStore.delete(key);
-        }
+async function sweepExpired(now: Date): Promise<void> {
+    try {
+        await prisma.rateLimit.deleteMany({ where: { resetAt: { lt: now } } });
+    } catch {
+        // Housekeeping only — never let it affect the caller.
     }
-}, 5 * 60 * 1000);
+}
 
 /**
- * Check and enforce rate limit for a given identifier
- * 
- * @param identifier - Unique identifier (e.g., "login:192.168.1.1")
- * @param limit - Maximum number of attempts allowed (default: 5)
- * @param windowMs - Time window in milliseconds (default: 15 minutes)
- * @returns Rate limit result with success status and metadata
+ * Count one attempt against `identifier` and say whether it is allowed.
+ *
+ * The insert and the increment are a single statement so that two simultaneous
+ * attempts cannot both read the same count and both write count + 1. Expiry is
+ * folded into the same statement: a window that has already ended is restarted
+ * at 1 rather than continuing to climb.
  */
-export function rateLimit(
+export async function rateLimit(
     identifier: string,
     limit: number = 5,
-    windowMs: number = 15 * 60 * 1000
-): RateLimitResult {
-    const now = Date.now();
-    const entry = rateLimitStore.get(identifier);
+    windowMs: number = 15 * 60 * 1000,
+): Promise<RateLimitResult> {
+    const now = new Date();
+    const resetAt = new Date(now.getTime() + windowMs);
 
-    // No previous attempts or window expired
-    if (!entry || entry.resetAt < now) {
-        const resetAt = now + windowMs;
-        rateLimitStore.set(identifier, {
-            count: 1,
-            resetAt
-        });
+    try {
+        const [, rows] = await prisma.$transaction([
+            prisma.$executeRaw`
+                INSERT INTO \`RateLimit\` (\`id\`, \`count\`, \`resetAt\`)
+                VALUES (${identifier}, 1, ${resetAt})
+                ON DUPLICATE KEY UPDATE
+                    \`count\` = IF(\`resetAt\` <= ${now}, 1, \`count\` + 1),
+                    \`resetAt\` = IF(\`resetAt\` <= ${now}, ${resetAt}, \`resetAt\`)
+            `,
+            prisma.$queryRaw<{ count: number; resetAt: Date }[]>`
+                SELECT \`count\`, \`resetAt\` FROM \`RateLimit\` WHERE \`id\` = ${identifier}
+            `,
+        ]);
 
+        if (Math.random() < SWEEP_PROBABILITY) void sweepExpired(now);
+
+        const row = rows[0];
+        if (!row) {
+            // Should not happen — the insert above guarantees a row.
+            return { success: true, limit, remaining: limit - 1, reset: resetAt.getTime() };
+        }
+
+        const count = Number(row.count);
+        const windowEnd = new Date(row.resetAt).getTime();
         return {
-            success: true,
+            success: count <= limit,
             limit,
-            remaining: limit - 1,
-            reset: resetAt
+            remaining: Math.max(0, limit - count),
+            reset: windowEnd,
         };
+    } catch (error) {
+        // Fail open, deliberately. Every caller is an endpoint that needs the
+        // database anyway — a login verifies a password hash, a claim writes a
+        // row — so a failure here means the request was going to fail regardless.
+        // Failing closed would turn a database blip into a total lockout without
+        // buying any protection.
+        console.error('Rate limit check failed, allowing request:', error);
+        return { success: true, limit, remaining: limit - 1, reset: resetAt.getTime() };
     }
-
-    // Within the rate limit window
-    if (entry.count < limit) {
-        entry.count++;
-
-        return {
-            success: true,
-            limit,
-            remaining: limit - entry.count,
-            reset: entry.resetAt
-        };
-    }
-
-    // Limit exceeded
-    return {
-        success: false,
-        limit,
-        remaining: 0,
-        reset: entry.resetAt
-    };
 }
 
 /**
- * Reset rate limit for a specific identifier
- * Useful for clearing limits after successful authentication
- * 
- * @param identifier - Unique identifier to reset
+ * Clear a limit, for use after a successful authentication so that a legitimate
+ * user who mistyped their password a few times starts clean.
  */
-export function resetRateLimit(identifier: string): void {
-    rateLimitStore.delete(identifier);
-}
-
-/**
- * Get current rate limit status without incrementing count
- * 
- * @param identifier - Unique identifier to check
- * @param limit - Maximum number of attempts allowed
- * @returns Current rate limit status
- */
-export function getRateLimitStatus(
-    identifier: string,
-    limit: number = 5
-): RateLimitResult {
-    const now = Date.now();
-    const entry = rateLimitStore.get(identifier);
-
-    if (!entry || entry.resetAt < now) {
-        return {
-            success: true,
-            limit,
-            remaining: limit,
-            reset: now
-        };
+export async function resetRateLimit(identifier: string): Promise<void> {
+    try {
+        await prisma.rateLimit.deleteMany({ where: { id: identifier } });
+    } catch (error) {
+        console.error('Rate limit reset failed:', error);
     }
-
-    return {
-        success: entry.count < limit,
-        limit,
-        remaining: Math.max(0, limit - entry.count),
-        reset: entry.resetAt
-    };
 }
