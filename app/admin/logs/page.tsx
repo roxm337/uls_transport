@@ -81,6 +81,9 @@ export default function LogsPage() {
             onError: (error, { silent }) => {
                 if (!silent) toast.error(error.message || t.logs.loadFailed);
             },
+            // Silent refresh, so the "Live" badge tells the truth without the
+            // table flashing a spinner every 30 seconds.
+            refreshMs: 30_000,
         },
     );
 
@@ -90,12 +93,6 @@ export default function LogsPage() {
     const actions: string[] = query.data?.actions ?? [];
     const pagination = query.data?.pagination ?? { total: 0, pages: 1 };
 
-    useEffect(() => {
-        // Silent refresh, so the "Live" badge tells the truth without the table
-        // flashing a spinner every 30 seconds.
-        const interval = setInterval(() => reload({ silent: true }), 30000);
-        return () => clearInterval(interval);
-    }, [reload]);
 
     async function handleClearLogs() {
         setClearing(true);

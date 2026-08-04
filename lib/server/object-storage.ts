@@ -126,8 +126,12 @@ export async function createUploadGrant(
         };
     }
 
-    // Binding the content type into the signature stops the URL being reused to
-    // store something else under the same key.
+    // ContentType here sets the type R2 records, but it is *not* enforced: a
+    // caller that PUTs a different Content-Type to this URL is accepted (probed
+    // against R2 — it returns 200). So the URL grants "write these bytes to this
+    // one key", nothing more. What the object actually contains is settled at
+    // finalize, which re-reads the stored object's leading bytes and deletes
+    // anything whose signature disagrees with the type being claimed.
     const uploadUrl = await getSignedUrl(
         s3(),
         new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: contentType }),

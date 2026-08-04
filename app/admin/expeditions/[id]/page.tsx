@@ -52,7 +52,11 @@ export default function ExpeditionDetailPage() {
     const query = useQuery(
         id,
         () => fetchExpedition(id),
-        { onError: error => toast.error(error.message || t.expeditionDetail.missing) },
+        {
+            onError: error => toast.error(error.message || t.expeditionDetail.missing),
+            // The status here is what operations watch; keep it live.
+            refreshMs: 30_000,
+        },
     );
 
     const { loading, reload: load } = query;

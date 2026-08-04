@@ -117,6 +117,8 @@ export function AdminClaimsPage() {
                 if (result.claims.length === 0 && result.page > 1) setPage(result.pageCount);
             },
             onError: error => toast.error(error.message || 'Chargement impossible.'),
+            // Litiges move between colleagues; keep the queue current.
+            refreshMs: 30_000,
         },
     );
 
@@ -238,7 +240,7 @@ function ClaimReviewDialog({ claim, open, onOpenChange, onSaved }: {
                     <div className="space-y-2"><Label>Statut du dossier</Label><Select value={status} onValueChange={value => setStatus(value as ClaimStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CLAIM_STATUSES.map(value => <SelectItem key={value} value={value}>{CLAIM_STATUS_LABELS[value]}</SelectItem>)}</SelectContent></Select></div>
                     <div className="hidden sm:block" />
                     <div className="space-y-2"><Label htmlFor="claim-public-response">Réponse visible par le client</Label><Textarea id="claim-public-response" value={publicResponse} onChange={event => setPublicResponse(event.target.value)} maxLength={5000} className="min-h-32 resize-y" placeholder="Expliquez la décision ou demandez les informations manquantes…" /></div>
-                    <div className="space-y-2"><Label htmlFor="claim-internal-note">Note interne</Label><Textarea id="claim-internal-note" value={internalNote} onChange={event => setInternalNote(event.target.value)} maxLength={10000} className="min-h-32 resize-y bg-amber-50/40" placeholder="Contexte réservé à l’équipe ULS…" /><p className="text-[10px] text-slate-400">Cette note n’apparaît jamais dans l’espace client.</p></div>
+                    <div className="space-y-2"><Label htmlFor="claim-internal-note">Note interne</Label><Textarea id="claim-internal-note" value={internalNote} onChange={event => setInternalNote(event.target.value)} maxLength={10000} className="min-h-32 resize-y bg-amber-50/40" placeholder="Contexte réservé à l’équipe ULS…" /><p className="text-[10px] text-slate-600">Cette note n’apparaît jamais dans l’espace client.</p></div>
                 </div>
                 <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button><Button variant="signal" onClick={save} disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer la décision</Button></DialogFooter>
             </DialogContent>

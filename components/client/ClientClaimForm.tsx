@@ -43,31 +43,59 @@ export function ClientClaimForm({ expeditions, initialExpeditionId = '' }: {
      * record it. The bytes never pass through our own API — a serverless request
      * body tops out at 4.5 MB, below the 8 MB a claimant is allowed.
      */
-    async function uploadDocument(claimId: string, file: File): Promise<boolean> {
+    async function uploadDocument(claimId: string, file: File): Promise<string | null> {
+        /** Read the server's own message, so the reason survives to the toast. */
+        const reason = async (response: Response, step: string) => {
+            let detail = '';
+            try {
+                const body = await response.clone().json();
+                detail = typeof body?.error === 'string' ? body.error : '';
+            } catch {
+                detail = (await response.clone().text().catch(() => '')).slice(0, 120);
+            }
+            const message = `${step} (${response.status})${detail ? ` : ${detail}` : ''}`;
+            console.error(`[upload] ${file.name} — ${message}`);
+            return message;
+        };
+
         try {
             const grantResponse = await fetch(`/api/client/claims/${claimId}/documents/upload-url`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contentType: file.type, size: file.size }),
             });
-            if (!grantResponse.ok) return false;
+            if (!grantResponse.ok) return await reason(grantResponse, 'autorisation refusée');
             const { uploadUrl, key } = await grantResponse.json();
 
-            const stored = await fetch(uploadUrl, {
-                method: 'PUT',
-                headers: { 'Content-Type': file.type },
-                body: file,
-            });
-            if (!stored.ok) return false;
+            let stored: Response;
+            try {
+                stored = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': file.type },
+                    body: file,
+                });
+            } catch (error) {
+                // A PUT straight to storage is cross-origin, so a blocked CORS
+                // preflight surfaces here as a network error with no status at
+                // all — worth naming, because it looks like nothing happened.
+                const message = `transfert bloqué (réseau/CORS) : ${error instanceof Error ? error.message : 'inconnu'}`;
+                console.error(`[upload] ${file.name} — ${message}`, { uploadUrl });
+                return message;
+            }
+            if (!stored.ok) return await reason(stored, 'dépôt refusé par le stockage');
 
             const finalized = await fetch(`/api/client/claims/${claimId}/documents`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ key, originalName: file.name, contentType: file.type }),
             });
-            return finalized.ok;
-        } catch {
-            return false;
+            if (!finalized.ok) return await reason(finalized, 'enregistrement refusé');
+
+            return null;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'erreur inconnue';
+            console.error(`[upload] ${file.name} — ${message}`);
+            return message;
         }
     }
 
@@ -82,12 +110,21 @@ export function ClientClaimForm({ expeditions, initialExpeditionId = '' }: {
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Création impossible.');
-            let uploadFailures = 0;
+            const failures: string[] = [];
             for (const file of files) {
-                if (!(await uploadDocument(data.claim.id, file))) uploadFailures += 1;
+                const failure = await uploadDocument(data.claim.id, file);
+                if (failure) failures.push(`${file.name} — ${failure}`);
             }
-            if (uploadFailures) toast.warning(`Dossier créé, mais ${uploadFailures} document(s) n’ont pas pu être envoyé(s).`);
-            else toast.success(`Dossier ${data.claim.reference} créé`);
+            if (failures.length) {
+                // Say what went wrong, not just how many. A bare count leaves
+                // the claimant with nothing to report and us with nothing to act on.
+                toast.warning(
+                    `Dossier créé, mais ${failures.length} document(s) n’ont pas pu être envoyé(s).`,
+                    { description: failures.join(' · '), duration: 12000 },
+                );
+            } else {
+                toast.success(`Dossier ${data.claim.reference} créé`);
+            }
             router.push(`/espace-client/reclamations/${data.claim.id}`);
             router.refresh();
         } catch (error) {

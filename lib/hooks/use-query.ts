@@ -23,6 +23,12 @@ export interface QueryOptions<T> {
      * presents itself as one still in flight.
      */
     enabled?: boolean;
+    /**
+     * Silently refetch on this interval so a colleague's edit appears without
+     * anyone reaching for reload. Refetching is skipped while the tab is
+     * hidden — a background tab nobody is reading does not need fresh data.
+     */
+    refreshMs?: number;
     onSuccess?: (data: T, meta: { silent: boolean }) => void;
     /**
      * `meta.silent` marks a background poll. A failed one should usually stay
@@ -114,6 +120,30 @@ export function useQuery<T>(
             silentFor: reloadOptions?.silent ? key : null,
         }));
     }, [key]);
+
+    // Bring the view up to date without anyone asking for it: when the tab is
+    // brought back to the front, and optionally on a timer. Both go through the
+    // silent path, so the table never flashes a spinner at someone who is
+    // reading it — the rows just become current.
+    const refreshMs = options.refreshMs ?? 0;
+    React.useEffect(() => {
+        if (!enabled) return;
+
+        const revalidate = () => {
+            // A hidden tab is nobody's screen; refetching it only burns quota.
+            if (document.visibilityState === 'visible') reload({ silent: true });
+        };
+
+        window.addEventListener('focus', revalidate);
+        document.addEventListener('visibilitychange', revalidate);
+        const timer = refreshMs > 0 ? setInterval(revalidate, refreshMs) : null;
+
+        return () => {
+            window.removeEventListener('focus', revalidate);
+            document.removeEventListener('visibilitychange', revalidate);
+            if (timer) clearInterval(timer);
+        };
+    }, [enabled, refreshMs, reload]);
 
     return {
         data: settled.data,
