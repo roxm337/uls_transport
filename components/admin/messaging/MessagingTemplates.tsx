@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@/lib/hooks/use-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,8 +43,6 @@ interface MessageTemplate {
 
 export function MessagingTemplates() {
     const { t } = useLanguage();
-    const [templates, setTemplates] = useState<MessageTemplate[]>([]);
-    const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'email' | 'whatsapp'>('email');
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState<MessageTemplate | null>(null);
@@ -59,41 +58,39 @@ export function MessagingTemplates() {
     const [formIsDefault, setFormIsDefault] = useState(false);
     const [formSaving, setFormSaving] = useState(false);
     const [templateToDelete, setTemplateToDelete] = useState<MessageTemplate | null>(null);
-    const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
 
     const [filterClientId, setFilterClientId] = useState<string>('all');
 
-    const loadClients = useCallback(async () => {
-        try {
-            const res = await fetch('/api/admin/users/clients');
-            if (res.ok) {
-                const data = await res.json();
-                setClients(data.clients || []);
-            }
-        } catch (error) {
-            console.error('Failed to load clients:', error);
-        }
-    }, []);
-
-    const loadTemplates = useCallback(async () => {
-        try {
-            setLoading(true);
+    const query = useQuery(
+        JSON.stringify({ activeTab, filterClientId }),
+        async (): Promise<{ templates?: MessageTemplate[] }> => {
             const res = await fetch(`/api/admin/templates?type=${activeTab}${filterClientId !== 'all' ? `&clientId=${filterClientId}` : ''}`);
             if (!res.ok) throw new Error('Failed to load templates');
-            const data = await res.json();
-            setTemplates(data.templates || []);
-        } catch (error) {
-            toast.error('Failed to load templates');
-            console.error(error);
-        } finally {
-            setLoading(false);
-        }
-    }, [activeTab, filterClientId]);
+            return res.json();
+        },
+        {
+            onError: error => {
+                toast.error('Failed to load templates');
+                console.error(error);
+            },
+        },
+    );
 
-    useEffect(() => {
-        void loadTemplates();
-        void loadClients();
-    }, [loadTemplates, loadClients]);
+    const { loading, reload: loadTemplates } = query;
+    const templates: MessageTemplate[] = query.data?.templates ?? [];
+
+    // The client list feeds a filter, not the table: fetched once, and unaffected
+    // by the tab or the filter above — hence a constant key.
+    const clientsQuery = useQuery(
+        'clients',
+        async (): Promise<{ clients?: { id: string; name: string }[] }> => {
+            const res = await fetch('/api/admin/users/clients');
+            if (!res.ok) throw new Error('Failed to load clients');
+            return res.json();
+        },
+        { onError: error => console.error('Failed to load clients:', error) },
+    );
+    const clients = clientsQuery.data?.clients ?? [];
 
 
 
@@ -216,7 +213,7 @@ export function MessagingTemplates() {
                     {/* Title removed for compact view in tabs */}
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="outline" size="icon" onClick={loadTemplates} disabled={loading}>
+                    <Button variant="outline" size="icon" onClick={() => loadTemplates()} disabled={loading}>
                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                     </Button>
                     <Button onClick={handleCreate}>

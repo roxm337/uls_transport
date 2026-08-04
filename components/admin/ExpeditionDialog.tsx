@@ -59,9 +59,16 @@ export function ExpeditionDialog({
         });
     }, [open, t]);
 
-    React.useEffect(() => {
-        if (!open) return;
-        if (expedition) {
+    // Seed the form when the dialog opens, or when it is pointed at a different
+    // shipment. Adjusting during render rather than in an effect keeps it to a
+    // single commit — see ClientDialog for the reasoning.
+    const seedFor = open ? (expedition?.id ?? `new:${defaultClientId ?? ''}`) : null;
+    const [seededFor, setSeededFor] = React.useState<string | null>(null);
+    if (seedFor !== seededFor) {
+        setSeededFor(seedFor);
+        if (!open) {
+            // Closing only records the transition; the hidden form is left alone.
+        } else if (expedition) {
             setForm({
                 clientId: expedition.clientId,
                 service: expedition.service,
@@ -85,7 +92,7 @@ export function ExpeditionDialog({
         } else {
             setForm({ ...EMPTY, clientId: defaultClientId ?? '' });
         }
-    }, [open, expedition, defaultClientId]);
+    }
 
     const set = (key: keyof typeof EMPTY) => (value: string) =>
         setForm(prev => ({ ...prev, [key]: value }));

@@ -23,6 +23,7 @@ import { OperationsMetricRail, OperationsPageHeader } from '@/components/admin/O
 import { useAdminRole } from '@/components/admin/AdminLayoutClient';
 import { useLanguage } from '@/lib/i18n/context';
 import { Pagination } from '@/components/admin/Pagination';
+import { useQuery } from '@/lib/hooks/use-query';
 import {
     EXPEDITION_STATUSES, EXPEDITION_STATUS_STYLES,
     SERVICE_OPTIONS, serviceShortLabel, formatEuros,
@@ -42,8 +43,6 @@ function ExpeditionsContent() {
     const role = useAdminRole();
     const isAdmin = role?.toUpperCase?.() === 'ADMIN';
 
-    const [expeditions, setExpeditions] = React.useState<Expedition[]>([]);
-    const [loading, setLoading] = React.useState(true);
     const [search, setSearch] = React.useState('');
     const [debounced, setDebounced] = React.useState('');
     const [status, setStatus] = React.useState('All');
@@ -53,10 +52,6 @@ function ExpeditionsContent() {
     const [editing, setEditing] = React.useState<Expedition | null>(null);
     const [toDelete, setToDelete] = React.useState<Expedition | null>(null);
     const [page, setPage] = React.useState(1);
-    const [paging, setPaging] = React.useState({ pageCount: 1, total: 0, pageSize: PAGE_SIZE });
-    // Totals now come from the API: derived from the loaded rows they only ever
-    // counted the current page.
-    const [totals, setTotals] = React.useState<ExpeditionTotals>({ all: 0, active: 0, delivered: 0 });
 
     React.useEffect(() => {
         // Resetting the page alongside the debounced term keeps both in one
@@ -66,26 +61,28 @@ function ExpeditionsContent() {
         return () => clearTimeout(timer);
     }, [search]);
 
-    const load = React.useCallback(async () => {
-        setLoading(true);
-        try {
-            const result = await fetchExpeditions({
-                search: debounced, status, service, clientId, page, pageSize: PAGE_SIZE,
-            });
-            setExpeditions(result.items);
-            setTotals(result.totals);
-            setPaging({ pageCount: result.pageCount, total: result.total, pageSize: result.pageSize });
-
+    const query = useQuery(
+        JSON.stringify({ debounced, status, service, clientId, page }),
+        () => fetchExpeditions({
+            search: debounced, status, service, clientId, page, pageSize: PAGE_SIZE,
+        }),
+        {
             // Deleting the last row of the last page can strand us past the end.
-            if (result.items.length === 0 && result.page > 1) setPage(result.pageCount);
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : t.expeditions.loadFailed);
-        } finally {
-            setLoading(false);
-        }
-    }, [debounced, status, service, clientId, page, t]);
+            onSuccess: result => {
+                if (result.items.length === 0 && result.page > 1) setPage(result.pageCount);
+            },
+            onError: error => toast.error(error.message || t.expeditions.loadFailed),
+        },
+    );
 
-    React.useEffect(() => { void load(); }, [load]);
+    const { loading, reload: load } = query;
+    const expeditions: Expedition[] = query.data?.items ?? [];
+    const totals: ExpeditionTotals = query.data?.totals ?? { all: 0, active: 0, delivered: 0 };
+    const paging = {
+        pageCount: query.data?.pageCount ?? 1,
+        total: query.data?.total ?? 0,
+        pageSize: query.data?.pageSize ?? PAGE_SIZE,
+    };
 
     async function handleDelete(expedition: Expedition) {
         try {

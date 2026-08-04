@@ -6,6 +6,7 @@ import { CheckCircle2, Clock, FileText, FileWarning, FolderOpen, Gauge, Hammer, 
 import { toast } from 'sonner';
 import { OperationsMetricRail, OperationsPageHeader } from '@/components/admin/OperationsPage';
 import { Pagination } from '@/components/admin/Pagination';
+import { useQuery } from '@/lib/hooks/use-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -86,16 +87,12 @@ const EMPTY_TOTALS: ClaimsResponse['totals'] = {
 const ISSUE_ICONS = { RETARD: Clock, AVARIE: PackageX, CASSE: Hammer, PERTE: SearchX } satisfies Record<ClaimIssueType, typeof Clock>;
 
 export function AdminClaimsPage() {
-    const [claims, setClaims] = React.useState<ClaimRow[]>([]);
-    const [loading, setLoading] = React.useState(true);
     const [search, setSearch] = React.useState('');
     const [debounced, setDebounced] = React.useState('');
     const [status, setStatus] = React.useState('All');
     const [type, setType] = React.useState('All');
     const [issueType, setIssueType] = React.useState('All');
     const [page, setPage] = React.useState(1);
-    const [paging, setPaging] = React.useState({ total: 0, pageCount: 1, pageSize: PAGE_SIZE });
-    const [totals, setTotals] = React.useState<ClaimsResponse['totals']>(EMPTY_TOTALS);
     const [editing, setEditing] = React.useState<ClaimRow | null>(null);
 
     React.useEffect(() => {
@@ -103,9 +100,9 @@ export function AdminClaimsPage() {
         return () => clearTimeout(timer);
     }, [search]);
 
-    const load = React.useCallback(async () => {
-        setLoading(true);
-        try {
+    const query = useQuery(
+        JSON.stringify({ debounced, status, type, issueType, page }),
+        async (): Promise<ClaimsResponse> => {
             const params = new URLSearchParams({
                 page: String(page), pageSize: String(PAGE_SIZE), status, type, issueType,
                 ...(debounced ? { search: debounced } : {}),
@@ -113,19 +110,24 @@ export function AdminClaimsPage() {
             const response = await fetch(`/api/admin/claims?${params}`, { cache: 'no-store' });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Chargement impossible.');
-            const result = data as ClaimsResponse;
-            setClaims(result.claims);
-            setTotals(result.totals);
-            setPaging({ total: result.total, pageCount: result.pageCount, pageSize: result.pageSize });
-            if (result.claims.length === 0 && result.page > 1) setPage(result.pageCount);
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Chargement impossible.');
-        } finally {
-            setLoading(false);
-        }
-    }, [debounced, issueType, page, status, type]);
+            return data as ClaimsResponse;
+        },
+        {
+            onSuccess: result => {
+                if (result.claims.length === 0 && result.page > 1) setPage(result.pageCount);
+            },
+            onError: error => toast.error(error.message || 'Chargement impossible.'),
+        },
+    );
 
-    React.useEffect(() => { void load(); }, [load]);
+    const { loading, reload: load } = query;
+    const claims: ClaimRow[] = query.data?.claims ?? [];
+    const totals: ClaimsResponse['totals'] = query.data?.totals ?? EMPTY_TOTALS;
+    const paging = {
+        total: query.data?.total ?? 0,
+        pageCount: query.data?.pageCount ?? 1,
+        pageSize: query.data?.pageSize ?? PAGE_SIZE,
+    };
 
     return (
         <div className="space-y-6">

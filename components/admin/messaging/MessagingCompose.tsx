@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useQuery } from '@/lib/hooks/use-query';
 import {
     Card,
     CardContent,
@@ -152,40 +153,43 @@ export function MessagingCompose() {
     const [isLoading, setIsLoading] = useState(false);
 
     // Lead Selection
-    const [leads, setLeads] = useState<Lead[]>([]);
-    const [isLoadingData, setIsLoadingData] = useState(true);
     const [leadSearchQuery, setLeadSearchQuery] = useState('');
     const [isLeadPopoverOpen, setIsLeadPopoverOpen] = useState(false);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-    const [scopeStatus, setScopeStatus] = useState<MessagingStatus | null>(null);
-    const [isLoadingStatus, setIsLoadingStatus] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [leadHistory, setLeadHistory] = useState<MessageLogRow[]>([]);
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
     // New UX state
     const [showLivePreview, setShowLivePreview] = useState(false);
-    const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
     const [isSent, setIsSent] = useState(false);
     const [draftLoaded, setDraftLoaded] = useState(false);
 
-    // Load draft from localStorage on mount
+    // Restore a saved draft once, after hydration.
+    //
+    // This is the one place in the file that genuinely has to set state from an
+    // effect. localStorage does not exist during SSR, so seeding these fields
+    // during render would make the server and client markup disagree, and
+    // `useSyncExternalStore` does not apply either — the auto-save below writes
+    // this same key on every keystroke, so its snapshot could never be stable.
+    // A single extra render on mount is the cost of restoring without a
+    // hydration mismatch.
     useEffect(() => {
         const savedDraft = localStorage.getItem(DRAFT_KEY);
-        if (savedDraft && !draftLoaded) {
-            try {
-                const draft = JSON.parse(savedDraft);
-                if (draft.message || draft.subject || draft.recipient) {
-                    setChannel(draft.channel || 'whatsapp');
-                    setRecipient(draft.recipient || '');
-                    setSubject(draft.subject || '');
-                    setMessage(draft.message || '');
-                    setDraftLoaded(true);
-                    toast.info('Draft restored', { duration: 2000 });
-                }
-            } catch (e) {
-                console.error('Failed to load draft:', e);
-            }
+        if (!savedDraft) return;
+        try {
+            const draft = JSON.parse(savedDraft);
+            if (!draft.message && !draft.subject && !draft.recipient) return;
+            /* eslint-disable react-hooks/set-state-in-effect -- see above */
+            setChannel(draft.channel || 'whatsapp');
+            setRecipient(draft.recipient || '');
+            setSubject(draft.subject || '');
+            setMessage(draft.message || '');
+            setDraftLoaded(true);
+            /* eslint-enable react-hooks/set-state-in-effect */
+            toast.info('Draft restored', { duration: 2000 });
+        } catch (e) {
+            console.error('Failed to load draft:', e);
         }
     }, []);
 
@@ -202,68 +206,64 @@ export function MessagingCompose() {
         localStorage.removeItem(DRAFT_KEY);
     };
 
-    useEffect(() => {
-        const name = searchParams.get('name');
-        if (name) {
-            setMessage(`Hello ${name}, `);
-        }
-    }, [searchParams]);
+    // A ?name= in the URL opens the composer with a greeting already typed.
+    // Adjusted during render, and only when the parameter actually changes, so
+    // it never overwrites what the user has since written.
+    const nameParam = searchParams.get('name');
+    const [greetedName, setGreetedName] = useState<string | null>(null);
+    if (nameParam && nameParam !== greetedName) {
+        setGreetedName(nameParam);
+        setMessage(`Hello ${nameParam}, `);
+    }
 
-    const fetchInitialData = async () => {
-        try {
-            // Recipients are clients and their contacts. This used to call
-            // /api/admin/leads — an endpoint removed with the lead pipeline,
-            // so the picker had been quietly empty ever since.
+    // Recipients are clients and their contacts. This used to call
+    // /api/admin/leads — an endpoint removed with the lead pipeline, so the
+    // picker had been quietly empty ever since.
+    const recipientsQuery = useQuery(
+        'recipients',
+        async (): Promise<{ recipients?: Lead[] }> => {
             const res = await fetch('/api/admin/messaging/recipients', { cache: 'no-store' });
-
-            if (res.ok) {
-                const data = await res.json();
-                setLeads(data.recipients || []);
-            }
-        } catch (error) {
-            console.error('Failed to fetch data', error);
-        } finally {
-            setIsLoadingData(false);
-        }
-    };
-
-    const fetchScopeStatus = async () => {
-        setIsLoadingStatus(true);
-        try {
-            const response = await fetch('/api/admin/messaging/status', { cache: 'no-store' });
-            if (response.ok) {
-                setScopeStatus(await response.json());
-            }
-        } catch (error) {
-            console.error('Failed to fetch messaging status', error);
-        } finally {
-            setIsLoadingStatus(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchInitialData();
-    }, []);
+            if (!res.ok) throw new Error('Failed to fetch data');
+            return res.json();
+        },
+        { onError: error => console.error('Failed to fetch data', error) },
+    );
+    const leads: Lead[] = useMemo(
+        () => recipientsQuery.data?.recipients ?? [],
+        [recipientsQuery.data],
+    );
+    const isLoadingData = recipientsQuery.loading;
 
     // One configuration for the company, so the status is loaded once rather
     // than re-fetched whenever a "sender profile" changed.
-    useEffect(() => {
-        void fetchScopeStatus();
-    }, []);
+    const statusQuery = useQuery(
+        'messaging-status',
+        async (): Promise<MessagingStatus> => {
+            const response = await fetch('/api/admin/messaging/status', { cache: 'no-store' });
+            if (!response.ok) throw new Error('Failed to fetch messaging status');
+            return response.json();
+        },
+        { onError: error => console.error('Failed to fetch messaging status', error) },
+    );
+    const scopeStatus = statusQuery.data;
+    const isLoadingStatus = statusQuery.loading;
 
-    useEffect(() => {
+    // Switching channel re-points the recipient at the same person's other
+    // address and drops the template, which belonged to the previous channel.
+    // Adjusted during render so the field never shows the wrong one first.
+    const [channelShown, setChannelShown] = useState(channel);
+    if (channel !== channelShown) {
+        setChannelShown(channel);
         setSelectedTemplateId(null);
         if (selectedLead) {
-            if (channel === 'email') {
-                setRecipient(selectedLead.email);
-            } else {
-                setRecipient(selectedLead.phone || '');
-            }
+            setRecipient(channel === 'email' ? selectedLead.email : (selectedLead.phone || ''));
         }
-    }, [channel]);
+    }
 
-    // Real-time validation
-    useEffect(() => {
+    // Real-time validation. Purely a function of the four fields below, so it is
+    // computed during render rather than mirrored into state by an effect — the
+    // effect version rendered once with last keystroke's errors before catching up.
+    const validationErrors = useMemo<ValidationErrors>(() => {
         const errors: ValidationErrors = {};
 
         if (recipient) {
@@ -288,7 +288,7 @@ export function MessagingCompose() {
             errors.message = 'Message exceeds WhatsApp limit (4096 characters)';
         }
 
-        setValidationErrors(errors);
+        return errors;
     }, [recipient, subject, message, channel]);
 
 
@@ -429,7 +429,7 @@ export function MessagingCompose() {
         } finally {
             setIsLoading(false);
         }
-    }, [channel, recipient, subject, message, selectedTemplateId, validationErrors, t]);
+    }, [channel, recipient, subject, message, selectedTemplateId, validationErrors]);
 
     // Keyboard shortcuts handler
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -453,7 +453,7 @@ export function MessagingCompose() {
                     break;
             }
         }
-    }, [channel, applyFormat]);
+    }, [channel, applyFormat, handleSend]);
 
 
     const getPreviewMessage = () => {

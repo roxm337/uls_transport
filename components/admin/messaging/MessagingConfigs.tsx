@@ -127,7 +127,6 @@ export function MessagingConfigs() {
     const [isLoadingData, setIsLoadingData] = useState(true);
 
     const [config, setConfig] = useState<MessagingConfigForm | null>(null);
-    const [, setIsLoadingConfig] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isTesting, setIsTesting] = useState<'email' | 'whatsapp' | null>(null);
     const [testResults, setTestResults] = useState<{ email?: boolean; whatsapp?: boolean }>({});
@@ -157,29 +156,37 @@ export function MessagingConfigs() {
         }
     };
 
-    const fetchConfig = async () => {
-        setIsLoadingConfig(true);
+    /**
+     * Fetch only — it touches no state, so the mount effect below can call it
+     * without setting state synchronously and cascading a render. The save
+     * handlers reuse it through `fetchConfig`.
+     */
+    const loadConfig = async (): Promise<MessagingConfigForm | null> => {
         try {
             const configRes = await fetch('/api/admin/messaging/config', { cache: 'no-store' });
-
-            if (configRes.ok) {
-                setConfig(await configRes.json());
-            } else {
-                toast.error('Chargement de la configuration impossible.');
-                setConfig(null);
-            }
+            if (!configRes.ok) throw new Error('Chargement de la configuration impossible.');
+            return await configRes.json();
         } catch (error) {
             console.error('Failed to fetch config:', error);
-            setConfig(null);
             toast.error('Chargement de la configuration impossible.');
-        } finally {
-            setIsLoadingConfig(false);
-            setIsLoadingData(false);
+            return null;
         }
     };
 
+    const fetchConfig = async () => {
+        setConfig(await loadConfig());
+        setIsLoadingData(false);
+    };
+
     useEffect(() => {
-        void fetchConfig();
+        let active = true;
+        void loadConfig().then(next => {
+            // A reply that arrives after unmount has nothing left to update.
+            if (!active) return;
+            setConfig(next);
+            setIsLoadingData(false);
+        });
+        return () => { active = false; };
     }, []);
 
 

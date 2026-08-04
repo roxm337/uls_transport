@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { signToken, verifyPassword } from '@/lib/auth';
+import { signToken, verifyPasswordOrDecoy } from '@/lib/auth';
 import { rateLimit, resetRateLimit } from '@/lib/rate-limit';
 import { CLIENT_COOKIE } from '@/lib/server/client-auth';
 
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
             include: { client: { select: { id: true, status: true } } },
         });
 
-        const valid = account ? await verifyPassword(password, account.passwordHash) : false;
+        const valid = await verifyPasswordOrDecoy(password, account?.passwordHash);
         if (!account || !valid) {
             return NextResponse.json({ error: 'Identifiants incorrects.' }, { status: 401 });
         }

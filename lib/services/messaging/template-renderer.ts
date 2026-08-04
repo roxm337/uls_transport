@@ -181,7 +181,7 @@ export class TemplateRenderer {
             // Shipment sample, so an expedition template previews as it sends
             reference: `ULS-${today.getFullYear()}-0042`,
             statut: 'En transit',
-            service: 'Messagerie nationale et internationale',
+            service: 'Transport urgent',
             enlevement_ville: 'Rungis',
             enlevement_date: today.toLocaleDateString('fr-FR'),
             livraison_ville: 'Lyon',

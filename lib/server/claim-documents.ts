@@ -48,12 +48,22 @@ export async function privateClaimDocumentResponse(document: {
     try {
         const bytes = await readFile(join(claimDocumentDirectory(), document.storedName));
         const filename = encodeURIComponent(document.originalName);
+        // Images preview in place; PDFs download. A PDF rendered inline runs its
+        // own JavaScript in this origin, which would put anything a claimant
+        // uploads on the same footing as the application's own scripts.
+        const disposition = document.mimeType === 'application/pdf' ? 'attachment' : 'inline';
         return new NextResponse(new Uint8Array(bytes), {
             headers: {
                 'Content-Type': document.mimeType,
-                'Content-Disposition': `inline; filename*=UTF-8''${filename}`,
+                'Content-Disposition': `${disposition}; filename*=UTF-8''${filename}`,
                 'Cache-Control': 'private, no-store, max-age=0',
                 'X-Content-Type-Options': 'nosniff',
+                // Belt and braces: `sandbox` alone drops scripts and plugins and
+                // gives the response an opaque origin. Adding source directives
+                // here would be self-defeating — an opaque origin never matches
+                // 'self', so `img-src 'self'` would block the image previews
+                // these links exist to show.
+                'Content-Security-Policy': 'sandbox',
             },
         });
     } catch {

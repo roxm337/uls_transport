@@ -20,6 +20,29 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
     return compare(password, hash);
 }
 
+/**
+ * Bcrypt hash of a random value, at the same cost as every stored password.
+ * Nothing verifies against it — it exists only to be compared against.
+ */
+const ABSENT_ACCOUNT_HASH = '$2b$10$716KFcOdsulFlAyGUimlq.mC1.LHMXtMcS.cTV55SalRx9NBLHyfS';
+
+/**
+ * Verify a password when the account may not exist. Skipping the comparison
+ * for an unknown e-mail returns in about a millisecond where a wrong password
+ * takes ~75 — a gap that lets anyone enumerate which addresses hold an
+ * account. Comparing against a decoy hash keeps both paths the same length.
+ */
+export async function verifyPasswordOrDecoy(
+    password: string,
+    hash: string | null | undefined,
+): Promise<boolean> {
+    if (!hash) {
+        await compare(password, ABSENT_ACCOUNT_HASH);
+        return false;
+    }
+    return compare(password, hash);
+}
+
 /** Claims carried by the session cookie. */
 export interface SessionClaims {
     userId: string;

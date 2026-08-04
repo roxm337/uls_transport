@@ -29,11 +29,12 @@ import {
 } from '@/lib/crm';
 import {
     fetchClient, deleteClient, createContact, deleteContact,
-    type Client, type ClientContact,
+    type ClientContact,
 } from '@/lib/services/clients';
 import { useAdminRole } from '@/components/admin/AdminLayoutClient';
 import { useLanguage } from '@/lib/i18n/context';
 import { ClientPortalAccess } from '@/components/admin/ClientPortalAccess';
+import { useQuery } from '@/lib/hooks/use-query';
 
 export default function ClientDetailPage() {
     const { t } = useLanguage();
@@ -42,26 +43,20 @@ export default function ClientDetailPage() {
     const role = useAdminRole();
     const isAdmin = role?.toUpperCase?.() === 'ADMIN';
 
-    const [client, setClient] = React.useState<Client | null>(null);
-    const [loading, setLoading] = React.useState(true);
     const [editOpen, setEditOpen] = React.useState(false);
     const [contactOpen, setContactOpen] = React.useState(false);
     const [deleting, setDeleting] = React.useState(false);
     const [confirmDelete, setConfirmDelete] = React.useState(false);
     const [contactToDelete, setContactToDelete] = React.useState<ClientContact | null>(null);
 
-    const load = React.useCallback(async () => {
-        setLoading(true);
-        try {
-            setClient(await fetchClient(id));
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : t.clientDetail.notFound);
-        } finally {
-            setLoading(false);
-        }
-    }, [id, t]);
+    const query = useQuery(
+        id,
+        () => fetchClient(id),
+        { onError: error => toast.error(error.message || t.clientDetail.notFound) },
+    );
 
-    React.useEffect(() => { void load(); }, [load]);
+    const { loading, reload: load } = query;
+    const client = query.data;
 
     async function handleDelete() {
         setDeleting(true);
@@ -396,12 +391,16 @@ function ContactDialog({ open, onOpenChange, clientId, onSaved }: {
     const [isPrimary, setIsPrimary] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
 
-    React.useEffect(() => {
+    // Clear the form each time the dialog opens. Adjusting during render rather
+    // than in an effect keeps it to a single commit — see ClientDialog.
+    const [wasOpen, setWasOpen] = React.useState(false);
+    if (open !== wasOpen) {
+        setWasOpen(open);
         if (open) {
             setForm({ name: '', role: '', email: '', phone: '' });
             setIsPrimary(false);
         }
-    }, [open]);
+    }
 
     async function submit(e: React.FormEvent) {
         e.preventDefault();

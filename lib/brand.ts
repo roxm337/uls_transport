@@ -30,14 +30,8 @@ export const BRAND = {
   site: 'https://uls-transport.com'
 } as const;
 
-/** The nine services ULS Transport operates. */
+/** The seven services ULS Transport operates. */
 export const SERVICES = [
-  {
-    slug: 'messagerie-nationale-internationale',
-    title: 'Messagerie nationale et internationale',
-    description:
-      'Envoyez vos palettes et autres matériels partout en France et en Europe, avec ou sans rupture de charge.',
-  },
   {
     slug: 'transport-urgent',
     title: 'Transport urgent',
@@ -67,12 +61,6 @@ export const SERVICES = [
     title: 'Plateaux / bras de grue',
     description:
       "Mise à disposition de plateaux et de bras de grue sur toute la Région Parisienne, avec opérateur qualifié.",
-  },
-  {
-    slug: 'demenagement',
-    title: 'Déménagement',
-    description:
-      'Nos équipes, spécialement formées à ce type de transfert, interviennent avec rapidité et efficacité selon vos besoins.',
   },
   {
     slug: 'benne-aluminium-acier',

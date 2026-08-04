@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useDeferredValue } from 'react';
+import { useState, useCallback, useDeferredValue } from 'react';
+import { useQuery } from '@/lib/hooks/use-query';
 import {
     Card,
     CardContent,
@@ -104,15 +105,11 @@ function SkeletonRow() {
 
 export function MessagingLogs() {
     const { t } = useLanguage();
-    const [logs, setLogs] = useState<MessageLogRow[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [selectedLog, setSelectedLog] = useState<MessageLogRow | null>(null);
     const [channelFilter, setChannelFilter] = useState<string>('all');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const [total, setTotal] = useState(0);
-    const [stats, setStats] = useState<LogStats>(EMPTY_STATS);
     const [isExporting, setIsExporting] = useState(false);
     const deferredSearch = useDeferredValue(searchQuery);
     const itemsPerPage = 10;
@@ -125,26 +122,21 @@ export function MessagingLogs() {
         return params;
     }, [channelFilter, statusFilter, deferredSearch]);
 
-    const fetchLogs = useCallback(async () => {
-        setIsLoading(true);
-        try {
+    const query = useQuery(
+        JSON.stringify({ channelFilter, statusFilter, deferredSearch, currentPage }),
+        async (): Promise<{ logs?: MessageLogRow[]; total?: number; stats?: LogStats }> => {
             const params = buildParams(itemsPerPage, (currentPage - 1) * itemsPerPage);
             const response = await fetch(`/api/admin/messaging/logs?${params.toString()}`);
             if (!response.ok) throw new Error('Failed to load messaging logs');
-            const data = await response.json();
-            setLogs(data.logs || []);
-            setTotal(data.total || 0);
-            setStats(data.stats || EMPTY_STATS);
-        } catch (error) {
-            console.error('Failed to fetch logs:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [buildParams, currentPage]);
+            return response.json();
+        },
+        { onError: error => console.error('Failed to fetch logs:', error) },
+    );
 
-    useEffect(() => {
-        void fetchLogs();
-    }, [fetchLogs]);
+    const { loading: isLoading, reload: fetchLogs } = query;
+    const logs: MessageLogRow[] = query.data?.logs ?? [];
+    const total = query.data?.total ?? 0;
+    const stats: LogStats = query.data?.stats ?? EMPTY_STATS;
 
     const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
 
@@ -280,7 +272,7 @@ export function MessagingLogs() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={fetchLogs}
+                                    onClick={() => fetchLogs()}
                                     disabled={isLoading}
                                 >
                                     <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />

@@ -55,9 +55,19 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
         });
     }, [open, t]);
 
-    React.useEffect(() => {
-        if (!open) return;
-        if (client) {
+    // Seed the form when the dialog opens, or when it is pointed at a different
+    // client. React's documented alternative to an effect for "reset state when
+    // a prop changes": adjusting during render lets React throw away the
+    // in-progress output and re-render immediately, where an effect would commit
+    // one pass showing the previous client's values and then cascade a second.
+    const seedFor = open ? (client?.id ?? 'new') : null;
+    const [seededFor, setSeededFor] = React.useState<string | null>(null);
+    if (seedFor !== seededFor) {
+        setSeededFor(seedFor);
+        if (!open) {
+            // Closing only records the transition; the hidden form is left alone
+            // so it is not rebuilt on the way out.
+        } else if (client) {
             setForm({
                 companyName: client.companyName ?? '',
                 siret: client.siret ?? '',
@@ -82,7 +92,7 @@ export function ClientDialog({ open, onOpenChange, client, onSaved }: Props) {
             // Off for a new client: nobody is written to until someone says so.
             setNotificationsEnabled(false);
         }
-    }, [open, client]);
+    }
 
     const set = (key: keyof typeof EMPTY) => (value: string) =>
         setForm(prev => ({ ...prev, [key]: value }));

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { verifyPassword, signToken } from '@/lib/auth';
+import { verifyPasswordOrDecoy, signToken } from '@/lib/auth';
 import { rateLimit, resetRateLimit } from '@/lib/rate-limit';
 import { logSecurityEvent, SecurityEvent, SecuritySeverity } from '@/lib/security-logger';
 
@@ -53,6 +53,11 @@ export async function POST(req: Request) {
             where: { email },
         });
 
+        // Always spend the cost of a comparison, even when no account matched:
+        // an early return here would answer an unknown e-mail far faster than a
+        // wrong password and expose which addresses exist.
+        const isValid = await verifyPasswordOrDecoy(password, user?.password);
+
         if (!user) {
             // Log Failed Login (Invalid User)
             await logSecurityEvent(SecurityEvent.AUTH_LOGIN_FAILED, {
@@ -65,19 +70,6 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
         }
 
-        if (user.status !== 'ACTIVE') {
-            await logSecurityEvent(SecurityEvent.ACCESS_DENIED, {
-                severity: SecuritySeverity.WARN,
-                userId: user.id,
-                email: user.email,
-                ip,
-                details: { reason: 'Account inactive', status: user.status },
-                req
-            });
-            return NextResponse.json({ error: 'Votre compte est suspendu. Veuillez contacter l\'administrateur.' }, { status: 403 });
-        }
-
-        const isValid = await verifyPassword(password, user.password);
         if (!isValid) {
             // Log Failed Login (Invalid Password)
             await logSecurityEvent(SecurityEvent.AUTH_LOGIN_FAILED, {
@@ -89,6 +81,20 @@ export async function POST(req: Request) {
                 req
             });
             return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+        }
+
+        // Only after the password is proven: telling an anonymous caller that an
+        // account is suspended would confirm the account exists.
+        if (user.status !== 'ACTIVE') {
+            await logSecurityEvent(SecurityEvent.ACCESS_DENIED, {
+                severity: SecuritySeverity.WARN,
+                userId: user.id,
+                email: user.email,
+                ip,
+                details: { reason: 'Account inactive', status: user.status },
+                req
+            });
+            return NextResponse.json({ error: 'Votre compte est suspendu. Veuillez contacter l\'administrateur.' }, { status: 403 });
         }
 
         // Generate JWT

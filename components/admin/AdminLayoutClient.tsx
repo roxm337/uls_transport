@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useSyncExternalStore, createContext, useContext } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ShieldOff } from 'lucide-react';
@@ -48,12 +48,17 @@ export function AdminLayoutClient({
     account?: AdminAccount | null;
 }) {
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-    const [mounted, setMounted] = useState(false);
     const pathname = usePathname();
 
-    useEffect(() => {
-        setMounted(true);
-    }, []);
+    // False through SSR and hydration, true on the client — the shell stays
+    // invisible until then so the server and client markup agree. Reading it
+    // from an external store instead of setting a flag in a mount effect means
+    // hydration settles in one commit rather than cascading a second render.
+    const mounted = useSyncExternalStore(
+        () => () => {},
+        () => true,
+        () => false,
+    );
 
     // Presentation guard: keeps a typed-in URL from rendering a screen whose
     // data the API will refuse anyway. The API remains the real boundary.

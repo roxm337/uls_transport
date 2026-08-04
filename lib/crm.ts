@@ -129,13 +129,11 @@ export function serviceLabel(slug: string): string {
 
 /** Short label for tables and chips, where the full title is too long. */
 export const SERVICE_SHORT: Record<string, string> = {
-    'messagerie-nationale-internationale': 'Messagerie',
     'transport-urgent': 'Urgent',
     'vehicules-avec-chauffeurs': 'Véhicule + chauffeur',
     'tournees-regulieres': 'Tournée régulière',
     'transport-frigorifique': 'Frigorifique',
     'plateaux-bras-de-grue': 'Plateau / grue',
-    'demenagement': 'Déménagement',
     'benne-aluminium-acier': 'Benne',
     'citernes-pulverulentes': 'Citerne',
 };

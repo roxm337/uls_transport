@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@/lib/hooks/use-query';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -33,34 +34,34 @@ const AVAILABLE_SECTIONS: Section[] = [
 const MANDATORY_SECTIONS = ['/admin', '/admin/settings'];
 
 export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps) {
+    // The grant is editable here, so it is seeded from the server rather than
+    // read straight off the query: the checkboxes below own it afterwards.
     const [allowedSections, setAllowedSections] = useState<string[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
 
-    const fetchPermissions = useCallback(async () => {
-        setIsLoading(true);
-        try {
+    const query = useQuery(
+        userId,
+        async (): Promise<{ allowedSections?: string[] }> => {
             const response = await fetch(`/api/admin/users/${userId}/permissions`);
-            if (response.ok) {
-                const data = await response.json();
+            if (!response.ok) throw new Error('Impossible de charger les permissions');
+            return response.json();
+        },
+        {
+            // Only a manager has a section grant to edit.
+            enabled: userRole === 'MANAGER',
+            onSuccess: data => {
                 setAllowedSections(data.allowedSections || []);
-            } else {
+                setHasChanges(false);
+            },
+            onError: error => {
+                console.error('Error fetching permissions:', error);
                 toast.error('Impossible de charger les permissions');
-            }
-        } catch (error) {
-            console.error('Error fetching permissions:', error);
-            toast.error('Impossible de charger les permissions');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [userId]);
+            },
+        },
+    );
 
-    useEffect(() => {
-        if (userRole === 'MANAGER') {
-            void fetchPermissions();
-        }
-    }, [userRole, fetchPermissions]);
+    const { loading: isLoading, reload: fetchPermissions } = query;
 
 
     const handleToggleSection = (sectionPath: string) => {
@@ -102,8 +103,8 @@ export function ManagerPermissions({ userId, userRole }: ManagerPermissionsProps
     };
 
     const handleReset = () => {
+        // Refetching reseeds the checkboxes and clears `hasChanges` on success.
         fetchPermissions();
-        setHasChanges(false);
     };
 
     if (userRole !== 'MANAGER') {

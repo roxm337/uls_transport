@@ -24,6 +24,7 @@ import {
     isClaimType,
 } from '../lib/claims';
 import { extractContact, mapCrmServices, normalizeCrmRow } from '../lib/server/crm-import';
+import { claimDocumentDirectory, privateClaimDocumentResponse } from '../lib/server/claim-documents';
 
 test('shipment status workflow allows only the next operational steps', () => {
     assert.deepEqual(allowedExpeditionTransitions('Demandee'), ['Planifiee', 'Annulee']);
@@ -90,6 +91,59 @@ test('client claim values are validated and presented without exposing storage k
     assert.equal(claimIssueTypeLabel('AVARIE'), 'Avarie');
     assert.equal(claimStatusLabel('ACCEPTEE'), 'Acceptée');
     assert.match(formatClaimAmount(125.5), /125,50/);
+});
+
+test('claim documents download PDFs, preview images, and refuse escaping paths', async () => {
+    const { mkdir, writeFile, rm } = await import('node:fs/promises');
+    const { join } = await import('node:path');
+    const directory = claimDocumentDirectory();
+    await mkdir(directory, { recursive: true });
+
+    const fixtures = ['test-fixture.pdf', 'test-fixture.png'];
+    for (const name of fixtures) await writeFile(join(directory, name), 'fixture');
+
+    try {
+        // A PDF rendered inline would run its own JavaScript in this origin.
+        const pdf = await privateClaimDocumentResponse({
+            storedName: 'test-fixture.pdf',
+            originalName: 'constat d’avarie.pdf',
+            mimeType: 'application/pdf',
+        });
+        assert.match(pdf.headers.get('content-disposition') ?? '', /^attachment;/);
+        assert.equal(pdf.headers.get('content-security-policy'), 'sandbox');
+        assert.equal(pdf.headers.get('x-content-type-options'), 'nosniff');
+        // The name survives round-tripping, accents and all.
+        assert.match(pdf.headers.get('content-disposition') ?? '', /filename\*=UTF-8''/);
+        assert.equal(
+            decodeURIComponent((pdf.headers.get('content-disposition') ?? '').split("UTF-8''")[1]),
+            'constat d’avarie.pdf',
+        );
+
+        // Images still preview in place, which is the point of the links.
+        const image = await privateClaimDocumentResponse({
+            storedName: 'test-fixture.png',
+            originalName: 'photo.png',
+            mimeType: 'image/png',
+        });
+        assert.match(image.headers.get('content-disposition') ?? '', /^inline;/);
+
+        // A stored name is a bare file name; anything else never reaches the disk.
+        const traversal = await privateClaimDocumentResponse({
+            storedName: '../../.env.local',
+            originalName: 'secrets',
+            mimeType: 'application/pdf',
+        });
+        assert.equal(traversal.status, 400);
+
+        const missing = await privateClaimDocumentResponse({
+            storedName: 'absent.png',
+            originalName: 'absent.png',
+            mimeType: 'image/png',
+        });
+        assert.equal(missing.status, 404);
+    } finally {
+        for (const name of fixtures) await rm(join(directory, name), { force: true });
+    }
 });
 
 test('real CRM rows normalize contacts, cities, and ULS service slugs', () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { History, Trash2, ChevronLeft, ChevronRight, Loader2, Search, Filter, XCircle, UserCheck, Shield, Users } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { toast } from "sonner";
 import { useLanguage } from '@/lib/i18n/context';
+import { useQuery } from '@/lib/hooks/use-query';
 
 interface ActionLog {
     id: string;
@@ -32,13 +33,17 @@ interface RoleCounts {
     SYSTEM: number;
 }
 
+interface LogsResponse {
+    logs?: ActionLog[];
+    /** Distinct action names, for the filter dropdown. */
+    actions?: string[];
+    pagination?: { total: number; pages: number };
+}
+
 const PAGE_SIZE = 50;
 
 export default function LogsPage() {
     const { t } = useLanguage();
-    const [logs, setLogs] = useState<ActionLog[]>([]);
-    const [actions, setActions] = useState<string[]>([]);
-    const [loading, setLoading] = useState(true);
     const [clearing, setClearing] = useState(false);
     const [confirmClear, setConfirmClear] = useState(false);
 
@@ -47,7 +52,6 @@ export default function LogsPage() {
     const [roleFilter, setRoleFilter] = useState('all');
     const [actionFilter, setActionFilter] = useState('all');
     const [page, setPage] = useState(1);
-    const [pagination, setPagination] = useState({ total: 0, pages: 1 });
 
     // Reset to the first page alongside the debounced term, in one update:
     // sequencing them fires a request for the new term against the old page.
@@ -56,9 +60,9 @@ export default function LogsPage() {
         return () => clearTimeout(timer);
     }, [searchQuery]);
 
-    const fetchLogs = useCallback(async (silent = false) => {
-        if (!silent) setLoading(true);
-        try {
+    const query = useQuery(
+        JSON.stringify({ page, debouncedSearch, roleFilter, actionFilter }),
+        async (): Promise<LogsResponse> => {
             const qs = new URLSearchParams({
                 limit: String(PAGE_SIZE),
                 offset: String((page - 1) * PAGE_SIZE),
@@ -69,31 +73,29 @@ export default function LogsPage() {
 
             const res = await fetch(`/api/admin/logs?${qs.toString()}`, { cache: 'no-store' });
             if (!res.ok) throw new Error(t.logs.loadFailed);
-
-            const data = await res.json();
-            setLogs(data.logs ?? []);
-            setActions(data.actions ?? []);
-            if (data.pagination) {
-                setPagination({ total: data.pagination.total, pages: data.pagination.pages });
-            }
-        } catch (error) {
+            return res.json();
+        },
+        {
             // A failed background refresh stays quiet: the visible table is
             // still valid, and a toast every 30s would be noise.
-            if (!silent) {
-                toast.error(error instanceof Error ? error.message : t.logs.loadFailed);
-            }
-        } finally {
-            if (!silent) setLoading(false);
-        }
-    }, [page, debouncedSearch, roleFilter, actionFilter, t]);
+            onError: (error, { silent }) => {
+                if (!silent) toast.error(error.message || t.logs.loadFailed);
+            },
+        },
+    );
 
-    useEffect(() => { void fetchLogs(); }, [fetchLogs]);
+    const { loading, reload } = query;
+    // Memoised so the identity is stable: the role counts below derive from it.
+    const logs: ActionLog[] = useMemo(() => query.data?.logs ?? [], [query.data]);
+    const actions: string[] = query.data?.actions ?? [];
+    const pagination = query.data?.pagination ?? { total: 0, pages: 1 };
 
     useEffect(() => {
-        // Silent refresh, so the "Live" badge tells the truth.
-        const interval = setInterval(() => void fetchLogs(true), 30000);
+        // Silent refresh, so the "Live" badge tells the truth without the table
+        // flashing a spinner every 30 seconds.
+        const interval = setInterval(() => reload({ silent: true }), 30000);
         return () => clearInterval(interval);
-    }, [fetchLogs]);
+    }, [reload]);
 
     async function handleClearLogs() {
         setClearing(true);
@@ -102,9 +104,8 @@ export default function LogsPage() {
             if (!res.ok) throw new Error(t.logs.purgeFailed);
             const data = await res.json();
             toast.success(t.logs.purged(data.deleted ?? 0));
-            setLogs([]);
             setPage(1);
-            setPagination({ total: 0, pages: 1 });
+            reload();
         } catch (error) {
             toast.error(error instanceof Error ? error.message : t.logs.purgeFailed);
         } finally {

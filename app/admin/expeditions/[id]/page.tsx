@@ -28,9 +28,10 @@ import {
 } from '@/lib/crm';
 import {
     fetchExpedition, updateExpedition, deleteExpedition,
-    type Expedition, type ExpeditionEvent, type NotifyOutcome,
+    type ExpeditionEvent, type NotifyOutcome,
 } from '@/lib/services/clients';
 import { useAdminRole } from '@/components/admin/AdminLayoutClient';
+import { useQuery } from '@/lib/hooks/use-query';
 import { useLanguage } from '@/lib/i18n/context';
 
 export default function ExpeditionDetailPage() {
@@ -40,8 +41,6 @@ export default function ExpeditionDetailPage() {
     const role = useAdminRole();
     const isAdmin = role?.toUpperCase?.() === 'ADMIN';
 
-    const [expedition, setExpedition] = React.useState<Expedition | null>(null);
-    const [loading, setLoading] = React.useState(true);
     const [editOpen, setEditOpen] = React.useState(false);
     const [updatingStatus, setUpdatingStatus] = React.useState(false);
     const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -50,18 +49,14 @@ export default function ExpeditionDetailPage() {
     const [pendingStatus, setPendingStatus] = React.useState<string | null>(null);
     const [statusNote, setStatusNote] = React.useState('');
 
-    const load = React.useCallback(async () => {
-        setLoading(true);
-        try {
-            setExpedition(await fetchExpedition(id));
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : t.expeditionDetail.missing);
-        } finally {
-            setLoading(false);
-        }
-    }, [id, t]);
+    const query = useQuery(
+        id,
+        () => fetchExpedition(id),
+        { onError: error => toast.error(error.message || t.expeditionDetail.missing) },
+    );
 
-    React.useEffect(() => { void load(); }, [load]);
+    const { loading, reload: load } = query;
+    const expedition = query.data;
 
     async function changeStatus(status: string, note?: string) {
         setUpdatingStatus(true);
@@ -70,12 +65,12 @@ export default function ExpeditionDetailPage() {
                 status,
                 statusNote: note?.trim() || undefined,
             });
-            setExpedition(prev => prev ? { ...prev, status: updated.status } : prev);
             toast.success(
-                t.expeditionDetail.statusChanged(t.crm.expeditionStatus[status] ?? status),
+                t.expeditionDetail.statusChanged(t.crm.expeditionStatus[updated.status] ?? updated.status),
                 { description: describeNotification(notified, t) },
             );
-            // Reload so the transition shows up in the timeline.
+            // Reload so both the new status and its timeline entry come from the
+            // server, rather than patching the status in locally first.
             void load();
         } catch (error) {
             toast.error(error instanceof Error ? error.message : t.expeditionDetail.statusUpdateFailed);

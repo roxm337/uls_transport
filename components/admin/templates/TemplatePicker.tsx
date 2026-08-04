@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@/lib/hooks/use-query';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -38,31 +39,27 @@ interface TemplatePickerProps {
 export function TemplatePicker({ type, scopeId, onSelect, disabled }: TemplatePickerProps) {
     const { t } = useLanguage();
     const [open, setOpen] = useState(false);
-    const [templates, setTemplates] = useState<MessageTemplate[]>([]);
-    const [loading, setLoading] = useState(false);
     const [hoveredTemplate, setHoveredTemplate] = useState<MessageTemplate | null>(null);
 
-    const loadTemplates = useCallback(async () => {
-        try {
-            setLoading(true);
+    // Nothing is fetched until the picker is opened.
+    const query = useQuery(
+        JSON.stringify({ type, scopeId }),
+        async (): Promise<{ templates?: MessageTemplate[] }> => {
             const params = new URLSearchParams({ type, status: 'active' });
             if (scopeId) params.append('clientId', scopeId);
 
             const res = await fetch(`/api/admin/templates?${params}`);
             if (!res.ok) throw new Error('Failed to load templates');
+            return res.json();
+        },
+        {
+            enabled: open,
+            onError: error => console.error('Failed to load templates:', error),
+        },
+    );
 
-            const data = await res.json();
-            setTemplates(data.templates || []);
-        } catch (error) {
-            console.error('Failed to load templates:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [type, scopeId]);
-
-    useEffect(() => {
-        if (open) void loadTemplates();
-    }, [open, loadTemplates]);
+    const loading = query.loading;
+    const templates: MessageTemplate[] = query.data?.templates ?? [];
 
 
     const handleSelect = (template: MessageTemplate) => {

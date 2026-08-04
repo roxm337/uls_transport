@@ -26,6 +26,7 @@ import {
     parseServices, serviceShortLabel,
 } from '@/lib/crm';
 import { Pagination } from '@/components/admin/Pagination';
+import { useQuery } from '@/lib/hooks/use-query';
 import {
     fetchClients, fetchStaffOptions, deleteClient,
     type Client, type ClientTotals, type StaffOption,
@@ -38,8 +39,6 @@ export default function ClientsPage() {
     const role = useAdminRole();
     const isAdmin = role?.toUpperCase?.() === 'ADMIN';
 
-    const [clients, setClients] = React.useState<Client[]>([]);
-    const [loading, setLoading] = React.useState(true);
     const [search, setSearch] = React.useState('');
     const [debounced, setDebounced] = React.useState('');
     const [status, setStatus] = React.useState('All');
@@ -51,10 +50,6 @@ export default function ClientsPage() {
     const [editing, setEditing] = React.useState<Client | null>(null);
     const [toDelete, setToDelete] = React.useState<Client | null>(null);
     const [page, setPage] = React.useState(1);
-    const [paging, setPaging] = React.useState({ pageCount: 1, total: 0, pageSize: PAGE_SIZE });
-    // Totals now come from the API: derived from the loaded rows they only ever
-    // counted the current page.
-    const [totals, setTotals] = React.useState<ClientTotals>({ all: 0, actifs: 0, expeditions: 0 });
 
     React.useEffect(() => {
         // Resetting the page alongside the debounced term keeps both in one
@@ -71,27 +66,29 @@ export default function ClientsPage() {
         });
     }, []);
 
-    const load = React.useCallback(async () => {
-        setLoading(true);
-        try {
-            const result = await fetchClients({
-                search: debounced, status, service, accountManagerId,
-                page, pageSize: PAGE_SIZE,
-            });
-            setClients(result.items);
-            setTotals(result.totals);
-            setPaging({ pageCount: result.pageCount, total: result.total, pageSize: result.pageSize });
-
+    const query = useQuery(
+        JSON.stringify({ debounced, status, service, accountManagerId, page }),
+        () => fetchClients({
+            search: debounced, status, service, accountManagerId,
+            page, pageSize: PAGE_SIZE,
+        }),
+        {
             // Deleting the last row of the last page can strand us past the end.
-            if (result.items.length === 0 && result.page > 1) setPage(result.pageCount);
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : t.clients.loadFailed);
-        } finally {
-            setLoading(false);
-        }
-    }, [debounced, status, service, accountManagerId, page, t]);
+            onSuccess: result => {
+                if (result.items.length === 0 && result.page > 1) setPage(result.pageCount);
+            },
+            onError: error => toast.error(error.message || t.clients.loadFailed),
+        },
+    );
 
-    React.useEffect(() => { void load(); }, [load]);
+    const { loading, reload: load } = query;
+    const clients: Client[] = query.data?.items ?? [];
+    const totals: ClientTotals = query.data?.totals ?? { all: 0, actifs: 0, expeditions: 0 };
+    const paging = {
+        pageCount: query.data?.pageCount ?? 1,
+        total: query.data?.total ?? 0,
+        pageSize: query.data?.pageSize ?? PAGE_SIZE,
+    };
 
     async function handleDelete(client: Client) {
         try {
