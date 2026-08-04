@@ -74,6 +74,58 @@ Tout est dans `.env.local` (ignoré par git) :
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD` — compte administrateur créé par le seed
 - `WHATSAPP_DEFAULT_COUNTRY_CODE` — indicatif par défaut (`33`), appliqué aux
   numéros saisis au format local (`06…` → `+336…`)
+- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` —
+  stockage des fichiers (voir « Stockage des fichiers »). **Les quatre
+  ensemble** activent Cloudflare R2 ; s'il en manque une, l'application écrit
+  sur le disque local.
+
+## Stockage des fichiers
+
+Deux surfaces déposent des fichiers : les justificatifs de litige
+(`storage/claims/…`, 8 Mo max, 5 par dossier) et les logos internes
+(`storage/uploads/…`, 10 Mo max). Les deux sont **privées** : rien n'est servi
+depuis une URL publique, tout passe par une route authentifiée qui vérifie que
+le demandeur a le droit de lire ce fichier.
+
+**Le navigateur dépose directement sur le stockage**, jamais à travers nos
+routes : une fonction serverless Vercel refuse un corps de requête au-delà de
+4,5 Mo, sous nos limites de 8 et 10 Mo. Le parcours est donc en trois temps :
+
+1. `POST …/upload-url` — la route vérifie les droits, fabrique la clé
+   (jamais fournie par l'appelant) et renvoie une URL signée de courte durée.
+2. `PUT` du fichier sur cette URL, du navigateur vers R2.
+3. `POST` de confirmation — le serveur relit l'objet déposé : taille réelle et
+   **octets d'en-tête**, pour vérifier que le fichier est bien du type annoncé.
+   Tout ce qui échoue est supprimé du stockage, et rien n'est enregistré.
+
+Le contrôle des octets d'en-tête existait avant, sur la requête ; il a été
+déplacé à l'étape 3, seul endroit qui voit encore le contenu.
+
+### Sans compte Cloudflare
+
+Sans les quatre variables `R2_*`, le même parcours écrit dans `storage/` via
+une URL locale signée (HMAC sur la clé, le type et l'expiration). `pnpm dev`
+fonctionne donc sans aucun compte.
+
+### Mise en place de R2
+
+```bash
+npx wrangler login
+npx wrangler r2 bucket create uls-transport-files --location=weur
+# Autoriser le PUT direct depuis le navigateur (origines dans r2-cors.json) :
+npx wrangler r2 bucket cors set uls-transport-files --file r2-cors.json
+```
+
+Puis créer un jeton R2 (« Object Read & Write », limité à ce bucket) et
+renseigner les quatre variables dans `.env.local` et sur Vercel.
+
+Le bucket reste **privé** : ne lui attachez pas de domaine public. Les URL
+signées ne servent qu'au dépôt ; la lecture passe toujours par nos routes, qui
+portent les contrôles d'accès, le `Content-Disposition: attachment` des PDF et
+l'en-tête `Content-Security-Policy: sandbox`.
+
+Les documents enregistrés avant ce changement gardent un nom de fichier simple
+et restent lisibles : ils sont relus sous `claims/<nom>`, sans migration.
 
 ## Domaine
 

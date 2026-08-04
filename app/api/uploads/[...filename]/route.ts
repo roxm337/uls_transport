@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { join } from 'path';
-import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
 import { requireStaff } from '@/lib/server/staff-auth';
+import { imageContentType, imageKeyForPath } from '@/lib/server/image-uploads';
+import { isSafeKey, readObject } from '@/lib/server/object-storage';
 
-const MIME_TYPES: Record<string, string> = {
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
-};
+export const runtime = 'nodejs';
 
 export async function GET(
     request: NextRequest,
@@ -23,27 +16,25 @@ export async function GET(
     if (!guard.ok) return guard.response;
 
     const { filename } = await params;
-    const file = filename.join('/');
-
-    // Prevent directory traversal
-    if (file.includes('..')) {
+    const key = imageKeyForPath(filename.join('/'));
+    if (!isSafeKey(key)) {
         return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
     }
 
-    const filepath = join(process.cwd(), 'public', 'uploads', file);
-
-    if (!existsSync(filepath)) {
+    const bytes = await readObject(key);
+    if (!bytes) {
         return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
-    const ext = '.' + file.split('.').pop()?.toLowerCase();
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-
-    const buffer = await readFile(filepath);
-
-    return new NextResponse(buffer, {
+    // Copied into a plain ArrayBuffer-backed view so it satisfies BodyInit.
+    return new NextResponse(new Uint8Array(bytes), {
         headers: {
-            'Content-Type': contentType,
+            // Derived from the extension we assigned at upload, never from the
+            // caller — and pinned with nosniff so the browser cannot be talked
+            // into treating an image as anything else.
+            'Content-Type': imageContentType(key),
+            'X-Content-Type-Options': 'nosniff',
+            'Content-Security-Policy': 'sandbox',
             // private: the response is session-scoped, so no shared cache
             // (proxy, CDN) may hold on to it.
             'Cache-Control': 'private, max-age=31536000, immutable',

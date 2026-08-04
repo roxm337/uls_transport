@@ -38,6 +38,39 @@ export function ClientClaimForm({ expeditions, initialExpeditionId = '' }: {
     const [files, setFiles] = useState<File[]>([]);
     const [submitting, setSubmitting] = useState(false);
 
+    /**
+     * Send one document: ask for a grant, PUT the file straight at storage, then
+     * record it. The bytes never pass through our own API — a serverless request
+     * body tops out at 4.5 MB, below the 8 MB a claimant is allowed.
+     */
+    async function uploadDocument(claimId: string, file: File): Promise<boolean> {
+        try {
+            const grantResponse = await fetch(`/api/client/claims/${claimId}/documents/upload-url`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contentType: file.type, size: file.size }),
+            });
+            if (!grantResponse.ok) return false;
+            const { uploadUrl, key } = await grantResponse.json();
+
+            const stored = await fetch(uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type },
+                body: file,
+            });
+            if (!stored.ok) return false;
+
+            const finalized = await fetch(`/api/client/claims/${claimId}/documents`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key, originalName: file.name, contentType: file.type }),
+            });
+            return finalized.ok;
+        } catch {
+            return false;
+        }
+    }
+
     async function submit(event: React.FormEvent) {
         event.preventDefault();
         setSubmitting(true);
@@ -51,10 +84,7 @@ export function ClientClaimForm({ expeditions, initialExpeditionId = '' }: {
             if (!response.ok) throw new Error(data.error || 'Création impossible.');
             let uploadFailures = 0;
             for (const file of files) {
-                const formData = new FormData();
-                formData.append('file', file);
-                const upload = await fetch(`/api/client/claims/${data.claim.id}/documents`, { method: 'POST', body: formData });
-                if (!upload.ok) uploadFailures += 1;
+                if (!(await uploadDocument(data.claim.id, file))) uploadFailures += 1;
             }
             if (uploadFailures) toast.warning(`Dossier créé, mais ${uploadFailures} document(s) n’ont pas pu être envoyé(s).`);
             else toast.success(`Dossier ${data.claim.reference} créé`);

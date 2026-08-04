@@ -1,85 +1,61 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
-import { randomUUID } from 'crypto';
+import { NextResponse } from 'next/server';
 import { requireStaff } from '@/lib/server/staff-auth';
 import { validateCsrf } from '@/lib/csrf';
+import {
+    IMAGE_OBJECT_PREFIX,
+    imageUrlForKey,
+    isUploadableImageType,
+    MAX_IMAGE_UPLOAD_SIZE,
+} from '@/lib/server/image-uploads';
+import { matchesSignature, SIGNATURE_PREFIX_BYTES } from '@/lib/server/file-signatures';
+import { deleteObject, headObject, readObjectPrefix } from '@/lib/server/object-storage';
 
-/** Accepted image types, and the extension each one is stored under. */
-const EXTENSION_BY_TYPE: Record<string, string> = {
-    'image/jpeg': '.jpg',
-    'image/jpg': '.jpg',
-    'image/png': '.png',
-    'image/gif': '.gif',
-    'image/webp': '.webp',
-};
+export const runtime = 'nodejs';
 
-export async function POST(request: NextRequest) {
-    // This route used to accept uploads from anyone: no session check meant
-    // any unauthenticated request could write 10MB to disk, without limit.
+/**
+ * Confirm an image whose bytes are already in storage, and hand back the URL
+ * the app should store.
+ *
+ * The upload no longer passes through here — a serverless request body stops at
+ * 4.5 MB and these images may reach 10 MB — so the stored object is inspected
+ * instead of the request: its real size, and leading bytes that match the type
+ * being claimed. Anything that fails is deleted rather than left behind.
+ */
+export async function POST(request: Request) {
     const csrfError = await validateCsrf(request);
     if (csrfError) return csrfError;
 
     const guard = await requireStaff();
     if (!guard.ok) return guard.response;
 
+    let body: unknown;
     try {
-        const formData = await request.formData();
-        const file = formData.get('file') as File;
-
-        if (!file) {
-            return NextResponse.json(
-                { error: 'No file provided' },
-                { status: 400 }
-            );
-        }
-
-        // Validate file type (only images)
-        if (!(file.type in EXTENSION_BY_TYPE)) {
-            return NextResponse.json(
-                { error: 'Invalid file type. Only images are allowed.' },
-                { status: 400 }
-            );
-        }
-
-        // Validate file size (max 10MB)
-        const maxSize = 10 * 1024 * 1024; // 10MB
-        if (file.size > maxSize) {
-            return NextResponse.json(
-                { error: 'File size exceeds 10MB limit' },
-                { status: 400 }
-            );
-        }
-
-        const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-
-        // Create uploads directory if it doesn't exist
-        const uploadsDir = join(process.cwd(), 'public', 'uploads');
-        if (!existsSync(uploadsDir)) {
-            await mkdir(uploadsDir, { recursive: true });
-        }
-
-        // Name the file ourselves rather than deriving it from user input:
-        // the extension comes from the validated MIME type, so nothing the
-        // client sends can shape the path or the served content type.
-        const extension = EXTENSION_BY_TYPE[file.type];
-        const filename = `${randomUUID()}${extension}`;
-        const filepath = join(uploadsDir, filename);
-
-        // Write file
-        await writeFile(filepath, buffer);
-
-        // Return the API-served URL (standalone mode doesn't serve public/ files)
-        const publicUrl = `/api/uploads/${filename}`;
-
-        return NextResponse.json({ url: publicUrl }, { status: 200 });
-    } catch (error) {
-        console.error('Upload error:', error);
-        return NextResponse.json(
-            { error: 'Failed to upload file' },
-            { status: 500 }
-        );
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
     }
+    const { key, contentType } = (body ?? {}) as { key?: unknown; contentType?: unknown };
+
+    if (!isUploadableImageType(contentType)) {
+        return NextResponse.json({ error: 'Invalid file type. Only images are allowed.' }, { status: 400 });
+    }
+    if (typeof key !== 'string' || !key.startsWith(IMAGE_OBJECT_PREFIX)) {
+        return NextResponse.json({ error: 'Invalid upload reference' }, { status: 400 });
+    }
+
+    const head = await headObject(key);
+    if (!head) return NextResponse.json({ error: 'Upload not found' }, { status: 404 });
+
+    if (head.size <= 0 || head.size > MAX_IMAGE_UPLOAD_SIZE) {
+        await deleteObject(key);
+        return NextResponse.json({ error: 'File size exceeds 10MB limit' }, { status: 400 });
+    }
+
+    const prefix = await readObjectPrefix(key, SIGNATURE_PREFIX_BYTES);
+    if (!prefix || !matchesSignature(prefix, contentType)) {
+        await deleteObject(key);
+        return NextResponse.json({ error: 'File content does not match its type.' }, { status: 400 });
+    }
+
+    return NextResponse.json({ url: imageUrlForKey(key) }, { status: 200 });
 }

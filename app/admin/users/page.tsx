@@ -58,6 +58,41 @@ export default function UsersPage() {
         }
     }
 
+    /**
+     * Send one image: ask for a grant, PUT it straight at storage, then confirm.
+     * Returns the URL to store, or null if any step failed — the bytes never
+     * pass through our own API, which caps a request body at 4.5 MB.
+     */
+    async function uploadImage(file: File): Promise<string | null> {
+        try {
+            const grantRes = await fetch('/api/upload/url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contentType: file.type, size: file.size }),
+            });
+            if (!grantRes.ok) return null;
+            const { uploadUrl, key } = await grantRes.json();
+
+            const stored = await fetch(uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type },
+                body: file,
+            });
+            if (!stored.ok) return null;
+
+            const confirmed = await fetch('/api/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key, contentType: file.type }),
+            });
+            if (!confirmed.ok) return null;
+            const { url } = await confirmed.json();
+            return url as string;
+        } catch {
+            return null;
+        }
+    }
+
     async function handleCreate(e: React.FormEvent) {
         e.preventDefault();
         setCreating(true);
@@ -65,18 +100,7 @@ export default function UsersPage() {
             let logoUrl = '';
 
             // Upload logo if provided
-            if (newLogo) {
-                const formData = new FormData();
-                formData.append('file', newLogo);
-                const uploadRes = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData,
-                });
-                if (uploadRes.ok) {
-                    const { url } = await uploadRes.json();
-                    logoUrl = url;
-                }
-            }
+            if (newLogo) logoUrl = (await uploadImage(newLogo)) ?? '';
 
             const payload = { name: newName, email: newEmail, password: newPassword, role: newRole, logo: logoUrl || undefined };
             await createUser(payload);
@@ -113,19 +137,8 @@ export default function UsersPage() {
         try {
             let logoUrl = editLogoPreview;
 
-            // Upload new logo if provided
-            if (editLogo) {
-                const formData = new FormData();
-                formData.append('file', editLogo);
-                const uploadRes = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData,
-                });
-                if (uploadRes.ok) {
-                    const { url } = await uploadRes.json();
-                    logoUrl = url;
-                }
-            }
+            // Upload new logo if provided; keep the existing one if it fails.
+            if (editLogo) logoUrl = (await uploadImage(editLogo)) ?? logoUrl;
 
             await updateUser(editingUser.id, {
                 name: editName,

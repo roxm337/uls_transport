@@ -1,40 +1,84 @@
-import { readFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { isSafeKey, readObject } from './object-storage';
+import { matchesSignature, SIGNATURE_PREFIX_BYTES } from './file-signatures';
+
+export { SIGNATURE_PREFIX_BYTES };
 
 export const MAX_CLAIM_DOCUMENT_SIZE = 8 * 1024 * 1024;
 export const MAX_CLAIM_DOCUMENTS = 5;
 
 const TYPES = {
-    'application/pdf': { extension: 'pdf', signature: (bytes: Uint8Array) => bytes.length >= 5 && new TextDecoder().decode(bytes.slice(0, 5)) === '%PDF-' },
-    'image/jpeg': { extension: 'jpg', signature: (bytes: Uint8Array) => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff },
-    'image/png': { extension: 'png', signature: (bytes: Uint8Array) => bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 },
-    'image/webp': { extension: 'webp', signature: (bytes: Uint8Array) => new TextDecoder().decode(bytes.slice(0, 4)) === 'RIFF' && new TextDecoder().decode(bytes.slice(8, 12)) === 'WEBP' },
+    'application/pdf': { extension: 'pdf' },
+    'image/jpeg': { extension: 'jpg' },
+    'image/png': { extension: 'png' },
+    'image/webp': { extension: 'webp' },
 } as const;
 
 export type ClaimDocumentMimeType = keyof typeof TYPES;
 
-export function claimDocumentDirectory(): string {
-    return join(process.cwd(), 'storage', 'claims');
+export function isClaimDocumentMimeType(value: unknown): value is ClaimDocumentMimeType {
+    return typeof value === 'string' && value in TYPES;
 }
 
-export async function validateClaimDocument(file: File): Promise<
-    | { ok: true; bytes: Uint8Array; mimeType: ClaimDocumentMimeType; extension: string; originalName: string }
-    | { ok: false; error: string }
-> {
-    if (!file.size || file.size > MAX_CLAIM_DOCUMENT_SIZE) {
-        return { ok: false, error: 'Chaque document doit peser moins de 8 Mo.' };
-    }
-    if (!(file.type in TYPES)) {
+export function claimDocumentExtension(mimeType: ClaimDocumentMimeType): string {
+    return TYPES[mimeType].extension;
+}
+
+/**
+ * Does the file actually start the way its declared type requires?
+ *
+ * The browser now uploads straight to storage, so this runs against bytes read
+ * back afterwards rather than against the request. It is the same check as
+ * before, moved to the only place that can still make it.
+ */
+export function matchesClaimSignature(bytes: Uint8Array, mimeType: ClaimDocumentMimeType): boolean {
+    return matchesSignature(bytes, mimeType);
+}
+
+export function cleanOriginalName(name: unknown, mimeType: ClaimDocumentMimeType): string {
+    const raw = typeof name === 'string' ? name : '';
+    return (
+        raw.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 180) ||
+        `document.${TYPES[mimeType].extension}`
+    );
+}
+
+/** Validation available before the bytes exist — type and declared size only. */
+export function validateClaimUpload(
+    contentType: unknown,
+    size: unknown,
+): { ok: true; mimeType: ClaimDocumentMimeType } | { ok: false; error: string } {
+    if (!isClaimDocumentMimeType(contentType)) {
         return { ok: false, error: 'Formats acceptés : PDF, JPG, PNG et WebP.' };
     }
-    const mimeType = file.type as ClaimDocumentMimeType;
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    if (!TYPES[mimeType].signature(bytes)) {
-        return { ok: false, error: 'Le contenu du document ne correspond pas à son format.' };
+    const bytes = typeof size === 'number' ? size : Number(size);
+    if (!Number.isFinite(bytes) || bytes <= 0 || bytes > MAX_CLAIM_DOCUMENT_SIZE) {
+        return { ok: false, error: 'Chaque document doit peser moins de 8 Mo.' };
     }
-    const cleanedName = file.name.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 180) || `document.${TYPES[mimeType].extension}`;
-    return { ok: true, bytes, mimeType, extension: TYPES[mimeType].extension, originalName: cleanedName };
+    return { ok: true, mimeType: contentType };
+}
+
+/**
+ * Where a claim's documents live. Scoping the key by claim means a finalize call
+ * can be checked against the claim it names, so one client cannot attach an
+ * object uploaded under someone else's claim.
+ */
+export function claimObjectPrefix(claimId: string): string {
+    return `claims/${claimId}/`;
+}
+
+export function newClaimObjectKey(claimId: string, mimeType: ClaimDocumentMimeType): string {
+    return `${claimObjectPrefix(claimId)}${randomUUID()}.${TYPES[mimeType].extension}`;
+}
+
+/**
+ * Documents stored before the move to object storage kept a bare file name and
+ * lived in `storage/claims`. Reading those through the same key space keeps them
+ * downloadable without a data migration.
+ */
+export function storageKeyFor(storedName: string): string {
+    return storedName.includes('/') ? storedName : `claims/${storedName}`;
 }
 
 export async function privateClaimDocumentResponse(document: {
@@ -42,31 +86,36 @@ export async function privateClaimDocumentResponse(document: {
     originalName: string;
     mimeType: string;
 }): Promise<NextResponse> {
-    if (basename(document.storedName) !== document.storedName) {
+    const key = storageKeyFor(document.storedName);
+    // Refused by name rather than left to the storage layer to reject: a stored
+    // name that escapes its key space is a broken record, not a missing file.
+    if (!isSafeKey(key)) {
         return NextResponse.json({ error: 'Document invalide.' }, { status: 400 });
     }
-    try {
-        const bytes = await readFile(join(claimDocumentDirectory(), document.storedName));
-        const filename = encodeURIComponent(document.originalName);
-        // Images preview in place; PDFs download. A PDF rendered inline runs its
-        // own JavaScript in this origin, which would put anything a claimant
-        // uploads on the same footing as the application's own scripts.
-        const disposition = document.mimeType === 'application/pdf' ? 'attachment' : 'inline';
-        return new NextResponse(new Uint8Array(bytes), {
-            headers: {
-                'Content-Type': document.mimeType,
-                'Content-Disposition': `${disposition}; filename*=UTF-8''${filename}`,
-                'Cache-Control': 'private, no-store, max-age=0',
-                'X-Content-Type-Options': 'nosniff',
-                // Belt and braces: `sandbox` alone drops scripts and plugins and
-                // gives the response an opaque origin. Adding source directives
-                // here would be self-defeating — an opaque origin never matches
-                // 'self', so `img-src 'self'` would block the image previews
-                // these links exist to show.
-                'Content-Security-Policy': 'sandbox',
-            },
-        });
-    } catch {
+    const bytes = await readObject(key);
+    if (!bytes) {
         return NextResponse.json({ error: 'Fichier introuvable.' }, { status: 404 });
     }
+    const filename = encodeURIComponent(document.originalName);
+    // Images preview in place; PDFs download. A PDF rendered inline runs its
+    // own JavaScript in this origin, which would put anything a claimant
+    // uploads on the same footing as the application's own scripts.
+    const disposition = document.mimeType === 'application/pdf' ? 'attachment' : 'inline';
+    // Copied into a plain ArrayBuffer-backed view: the byte array coming back
+    // from storage is not narrow enough to be a BodyInit on its own.
+    const body = new Uint8Array(bytes);
+    return new NextResponse(body, {
+        headers: {
+            'Content-Type': document.mimeType,
+            'Content-Disposition': `${disposition}; filename*=UTF-8''${filename}`,
+            'Cache-Control': 'private, no-store, max-age=0',
+            'X-Content-Type-Options': 'nosniff',
+            // Belt and braces: `sandbox` alone drops scripts and plugins and
+            // gives the response an opaque origin. Adding source directives
+            // here would be self-defeating — an opaque origin never matches
+            // 'self', so `img-src 'self'` would block the image previews
+            // these links exist to show.
+            'Content-Security-Policy': 'sandbox',
+        },
+    });
 }

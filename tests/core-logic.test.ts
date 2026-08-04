@@ -24,7 +24,15 @@ import {
     isClaimType,
 } from '../lib/claims';
 import { extractContact, mapCrmServices, normalizeCrmRow } from '../lib/server/crm-import';
-import { claimDocumentDirectory, privateClaimDocumentResponse } from '../lib/server/claim-documents';
+import {
+    claimObjectPrefix,
+    matchesClaimSignature,
+    newClaimObjectKey,
+    privateClaimDocumentResponse,
+    storageKeyFor,
+    validateClaimUpload,
+} from '../lib/server/claim-documents';
+import { isSafeKey } from '../lib/server/object-storage';
 
 test('shipment status workflow allows only the next operational steps', () => {
     assert.deepEqual(allowedExpeditionTransitions('Demandee'), ['Planifiee', 'Annulee']);
@@ -96,7 +104,9 @@ test('client claim values are validated and presented without exposing storage k
 test('claim documents download PDFs, preview images, and refuse escaping paths', async () => {
     const { mkdir, writeFile, rm } = await import('node:fs/promises');
     const { join } = await import('node:path');
-    const directory = claimDocumentDirectory();
+    // Legacy bare stored names still resolve under `storage/claims`, which is
+    // what lets documents written before object storage stay downloadable.
+    const directory = join(process.cwd(), 'storage', 'claims');
     await mkdir(directory, { recursive: true });
 
     const fixtures = ['test-fixture.pdf', 'test-fixture.png'];
@@ -127,13 +137,15 @@ test('claim documents download PDFs, preview images, and refuse escaping paths',
         });
         assert.match(image.headers.get('content-disposition') ?? '', /^inline;/);
 
-        // A stored name is a bare file name; anything else never reaches the disk.
-        const traversal = await privateClaimDocumentResponse({
-            storedName: '../../.env.local',
-            originalName: 'secrets',
-            mimeType: 'application/pdf',
-        });
-        assert.equal(traversal.status, 400);
+        // A stored name that escapes its key space never reaches the disk.
+        for (const storedName of ['../../.env.local', '/etc/passwd', 'claims/../../.env']) {
+            const traversal = await privateClaimDocumentResponse({
+                storedName,
+                originalName: 'secrets',
+                mimeType: 'application/pdf',
+            });
+            assert.equal(traversal.status, 400, `expected ${storedName} to be refused`);
+        }
 
         const missing = await privateClaimDocumentResponse({
             storedName: 'absent.png',
@@ -144,6 +156,37 @@ test('claim documents download PDFs, preview images, and refuse escaping paths',
     } finally {
         for (const name of fixtures) await rm(join(directory, name), { force: true });
     }
+});
+
+test('claim upload keys stay scoped to their claim and verify their own bytes', () => {
+    // The browser uploads straight to storage, so the key is built server-side
+    // and finalize checks it against the claim prefix. Without that, a caller
+    // could attach an object uploaded under someone else's claim.
+    const key = newClaimObjectKey('claim-abc', 'application/pdf');
+    assert.ok(key.startsWith(claimObjectPrefix('claim-abc')));
+    assert.ok(key.endsWith('.pdf'));
+    assert.ok(isSafeKey(key));
+    assert.equal(key.startsWith(claimObjectPrefix('claim-other')), false);
+
+    // Legacy bare names keep resolving; real keys are left alone.
+    assert.equal(storageKeyFor('abc.png'), 'claims/abc.png');
+    assert.equal(storageKeyFor('claims/x/abc.png'), 'claims/x/abc.png');
+
+    // Declared type and size are rejected before a grant is ever issued.
+    assert.equal(validateClaimUpload('application/pdf', 1024).ok, true);
+    assert.equal(validateClaimUpload('text/html', 1024).ok, false);
+    assert.equal(validateClaimUpload('application/pdf', 0).ok, false);
+    assert.equal(validateClaimUpload('application/pdf', 9 * 1024 * 1024).ok, false);
+
+    // Magic bytes still decide, now read back from storage after upload.
+    const pdf = new TextEncoder().encode('%PDF-1.7 ...');
+    assert.equal(matchesClaimSignature(pdf, 'application/pdf'), true);
+    assert.equal(matchesClaimSignature(pdf, 'image/png'), false);
+    // An HTML payload renamed to .pdf never gets a row written.
+    const html = new TextEncoder().encode('<html><script>alert(1)</script>');
+    assert.equal(matchesClaimSignature(html, 'application/pdf'), false);
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    assert.equal(matchesClaimSignature(png, 'image/png'), true);
 });
 
 test('real CRM rows normalize contacts, cities, and ULS service slugs', () => {
